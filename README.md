@@ -19,12 +19,11 @@ This project provides:
 
 ## 🔥 Key Features
 
-* Unified scenario modeling and JSON format
-* Fair cross-algorithm benchmarking
-* Modular algorithm integration
-* Multi-objective optimization support
-* RL checkpoint saving & resume training
-* Automated CZML generation and 3D visualization
+* **Scalable Scenario Generation**: Generate realistic tasks and orbital mechanics for constellations ranging from 1 to 1000+ satellites over 1h–168h horizons. Supports randomized mission distributions or precise JSON-based city targets.
+* **High-Fidelity Constraint Modeling**: Natively supports **Agile and Non-Agile** satellites with piecewise attitude transition time models (Δroll, Δpitch, Δyaw), power consumption, and data storage limits.
+* **High-Performance Candidate Pool**: Employs truncated, diversified candidate sampling (Earliest, Center, Latest, Random) coupled with Early Accept and dynamic sampling techniques to keep complexity at O(T · K) for massive scales.
+* **Unified Multi-Objective Optimization**: Standardized 0~1 normalized evaluation for Profit, Completion Rate, Timeliness, and Balance Degree.
+* **Automated 3D Visualization**: One-click generation of CZML files for dynamic orbit and scheduling visualization via Cesium.
 
 ---
 
@@ -33,16 +32,23 @@ This project provides:
 ```
 Satellite_Benchmark/
 │
-├── algorithms/          # Scheduling algorithms (MIP / Heuristic / Meta / PPO)
-├── core/                # Scenario modeling & visibility computation
-├── schedulers/          # Constraint model, scheduling engine, evaluation
-├── draw/                # Cesium 3D visualization tools
-├── input/               # Constellation & target data
-├── output/              # Generated scenarios, schedules, RL models
+├── algorithms/          # Algorithm implementations & Factory
+│   ├── mip.py           # MILP formulation (PuLP)
+│   ├── heuristics.py    # TP, TCR, TM, BD heuristic schedulers
+│   ├── meta_*.py        # SA, GA, ACO implementations
+│   ├── ppo/             # PPO Policy, Agent, and RL training loops
+│   ├── candidate_pool.py# Diverse candidate window generation
+│   └── objectives.py    # Multi-objective scoring models
 │
-├── main_generate.py     # Generate benchmark scenarios
-├── main_scheduler.py    # Run benchmark & train/test RL
-└── main_draw.py         # Launch 3D visualization
+├── core/                # Static domain models & Scenario generation
+├── schedulers/          # Constraint models, transition utils, RL env
+├── draw/                # Cesium 3D visualization tools
+├── input/               # Constellation setups & target data (e.g., cities.json)
+├── output/              # Generated scenarios, schedules, RL models, logs
+│
+├── main_generate.py     # Script to generate benchmark scenarios
+├── main_scheduler.py    # Main entry to run benchmark algorithms & train RL
+└── main_draw.py         # Launch local server for 3D visualization
 ```
 
 ---
