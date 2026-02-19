@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Scenario - Satellite Schedule Viewer</title>
+
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.136/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.136/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0b1020;
+      color: #f5f5f5;
+    }
+
+    body {
+      display: flex;
+      flex-direction: row;
+    }
+
+    #leftPanel, #rightPanel {
+      box-sizing: border-box;
+      padding: 10px 12px;
+      background: rgba(12, 18, 40, 0.96);
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      z-index: 1;
+    }
+
+    #leftPanel {
+      width: 260px;
+    }
+
+    #rightPanel {
+      width: 520px;
+      border-right: none;
+      border-left: 1px solid rgba(255, 255, 255, 0.05);
+      overflow-y: auto;
+    }
+
+    #cesiumContainer {
+      flex: 1 1 auto;
+      height: 100%;
+    }
+
+    h2 {
+      margin: 6px 0 8px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #67b2ff;
+    }
+
+    .panel-section {
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      padding: 4px 0;
+    }
+
+    .metric-row span:first-child {
+      opacity: 0.75;
+    }
+
+    .metric-row span:last-child {
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    #assignmentList table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    #assignmentList th,
+    #assignmentList td {
+      padding: 6px 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    #assignmentList th {
+      position: sticky;
+      top: 0;
+      background: rgba(20, 30, 60, 1);
+      z-index: 2;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #assignmentList tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .assignment-row {
+      cursor: pointer;
+    }
+
+    .assignment-row:hover {
+      background: rgba(103, 178, 255, 0.16);
+    }
+
+    .assignment-row.active {
+      background: rgba(103, 178, 255, 0.26);
+      border-left: 2px solid #67b2ff;
+    }
+
+    #pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 12px;
+    }
+
+    #pagination button {
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      background: transparent;
+      color: #f5f5f5;
+      cursor: pointer;
+    }
+
+    #pagination button:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    #pagination span {
+      opacity: 0.8;
+    }
+
+    .small-text {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      font-size: 13px;
+      margin: 5px 0;
+      cursor: pointer;
+    }
+
+    .toggle-row input {
+      margin-right: 8px;
+    }
+
+    #openGanttBtn {
+      padding: 5px 12px;
+      font-size: 12px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      background: rgba(40, 80, 160, 0.9);
+      color: #f5f5f5;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #openGanttBtn:hover {
+      background: rgba(66, 135, 245, 1);
+    }
+
+    #rightHeaderRow {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="leftPanel">
+    <div class="panel-section">
+      <h2>Metrics</h2>
+      <div id="metrics">
+        <div class="small-text">Loading...</div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Display Controls</h2>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleSatTrack" checked />
+        Satellite Orbit Tracks
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleSatLabel" checked />
+        Satellite Labels
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleSatPoint" checked />
+        Satellite Points
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleTargetLabel" checked />
+        Ground Target Labels
+      </label>
+      <label class="toggle-row">
+        <input type="checkbox" id="toggleTargetPoint" checked />
+        Ground Target Points
+      </label>
+    </div>
+
+    <div class="panel-section">
+      <h2>Simulation Time</h2>
+      <div id="currentTime" class="small-text">-</div>
+    </div>
+  </div>
+
+  <div id="cesiumContainer"></div>
+
+  <div id="rightPanel">
+    <div class="panel-section">
+      <div id="rightHeaderRow">
+        <h2>Observation Intervals</h2>
+        <button id="openGanttBtn">Gantt Chart</button>
+      </div>
+      <div id="assignmentList">
+        <div class="small-text">Loading...</div>
+      </div>
+      <div id="pagination">
+        <button id="prevPage" disabled>Previous</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage" disabled>Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== 1. Cesium ion token =====
+    Cesium.Ion.defaultAccessToken =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2OWQ5ODEzNy0xNGM5LTRlMWEtOTg0MC0yZGI4YTNlZGE5ZDIiLCJpZCI6MzY1OTQ3LCJpYXQiOjE3NjQ2OTE2NDh9.MptWTgPk7UUb6qGi4UI4dtHmzgOHq3UbYEHDeZV0LuI';
+
+    // ===== 2. Create Viewer =====
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      baseLayerPicker: false,
+      geocoder: false,
+      animation: true,
+      timeline: true,
+      shouldAnimate: true
+    });
+
+    function flyToEarthCenter() {
+      const center = Cesium.Cartesian3.fromDegrees(0.0, 0.0, 4.0e7);
+      viewer.camera.flyTo({
+        destination: center,
+        orientation: {
+          heading: Cesium.Math.toRadians(0.0),
+          pitch: -Cesium.Math.PI_OVER_TWO,
+          roll: 0.0
+        },
+        duration: 0.0
+      });
+    }
+    flyToEarthCenter();
+
+    // Update simulation clock display
+    function updateCurrentTimeLabel() {
+      const ct = viewer.clock.currentTime;
+      const gregorian = Cesium.JulianDate.toGregorianDate(ct);
+      const pad = (n) => (n < 10 ? '0' + n : '' + n);
+      const text =
+        gregorian.year + '-' +
+        pad(gregorian.month) + '-' +
+        pad(gregorian.day) + ' ' +
+        pad(gregorian.hour) + ':' +
+        pad(gregorian.minute) + ':' +
+        pad(Math.floor(gregorian.second));
+      document.getElementById('currentTime').textContent = text;
+    }
+    viewer.clock.onTick.addEventListener(updateCurrentTimeLabel);
+
+    // ===== 3. Load CZML & Schedule Plan =====
+    function getScheduleUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const url = params.get('schedule');
+      if (url) return url;
+      return '../output/schedules/Scenario_S1_schedule.json';
+    }
+
+    const czmlPromise = Cesium.CzmlDataSource.load('orbit.czml');
+    const schedulePromise = fetch(getScheduleUrl()).then((r) => r.json());
+
+    Promise.all([czmlPromise, schedulePromise])
+      .then(function ([ds, schedule]) {
+        viewer.dataSources.add(ds);
+        viewer.zoomTo(ds).then(flyToEarthCenter);
+
+        setupMetrics(schedule);
+        setupAssignmentsPanel(schedule, ds);
+        setupScheduleLink(schedule, ds);
+        setupVisibilityControls(ds);
+        setupGanttButton();
+      })
+      .catch(function (error) {
+        console.error('Error loading data:', error);
+      });
+
+    // ===== 4. Left Panel Metrics =====
+    function setupMetrics(schedule) {
+      const metricsDiv = document.getElementById('metrics');
+      const metrics = schedule.metrics || {};
+      const formatFloat = (v, digits = 3) =>
+        v == null ? '-' : Number(v).toFixed(digits);
+
+      metricsDiv.innerHTML = ''
+        + metricRow('Total Profit (TP)', metrics.TP)
+        + metricRow('Completion Rate (TCR)', formatFloat(metrics.TCR, 3))
+        + metricRow('Balance Degree (BD)', formatFloat(metrics.BD, 3))
+        + metricRow('Timeliness (TM)', formatFloat(metrics.TM, 6))
+        + metricRow('Runtime (RT) [s]', formatFloat(metrics.RT, 3))
+        + metricRow('Robustness Var (RV)', metrics.RV == null ? '-' : formatFloat(metrics.RV, 3));
+
+      function metricRow(name, value) {
+        return (
+          '<div class="metric-row">' +
+          '<span>' + name + '</span>' +
+          '<span>' + value + '</span>' +
+          '</div>'
+        );
+      }
+    }
+
+    // ===== 5. Right Panel List + Pagination =====
+    function setupAssignmentsPanel(schedule, ds) {
+      const rawAssignments = schedule.assignments || [];
+      if (!rawAssignments.length) {
+        document.getElementById('assignmentList').innerHTML =
+          '<div class="small-text">No observation tasks found.</div>';
+        return;
+      }
+
+      const assignments = rawAssignments
+        .map((a, idx) => {
+          const start = Cesium.JulianDate.fromIso8601(a.sat_start_time);
+          const end = Cesium.JulianDate.fromIso8601(a.sat_end_time);
+          const durationSec = Cesium.JulianDate.secondsDifference(end, start);
+          return {
+            index: idx,
+            task_id: a.task_id,
+            satellite_id: a.satellite_id,
+            sat_start_time: a.sat_start_time,
+            sat_end_time: a.sat_end_time,
+            priority: a.priority,
+            start: start,
+            end: end,
+            durationSec: durationSec
+          };
+        })
+        .sort((a, b) => Cesium.JulianDate.compare(a.start, b.start));
+
+      const pageSize = 12;
+      let currentPage = 1;
+
+      const listDiv = document.getElementById('assignmentList');
+      const prevBtn = document.getElementById('prevPage');
+      const nextBtn = document.getElementById('nextPage');
+      const pageInfo = document.getElementById('pageInfo');
+
+      function renderPage() {
+        const total = assignments.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, total);
+
+        let html = '<table><thead><tr>'
+          + '<th>#</th>'
+          + '<th>Sat</th>'
+          + '<th>Task</th>'
+          + '<th>Start Time</th>'
+          + '<th>End Time</th>'
+          + '<th>Dur(s)</th>'
+          + '<th>Pri</th>'
+          + '</tr></thead><tbody>';
+
+        for (let i = startIndex; i < endIndex; i++) {
+          const a = assignments[i];
+          html +=
+            '<tr class="assignment-row" data-index="' + a.index + '">'
+            + '<td>' + (i + 1) + '</td>'
+            + '<td>' + a.satellite_id + '</td>'
+            + '<td>' + a.task_id + '</td>'
+            + '<td class="small-text">' + a.sat_start_time.replace('T', ' ').split('.')[0] + '</td>'
+            + '<td class="small-text">' + a.sat_end_time.replace('T', ' ').split('.')[0] + '</td>'
+            + '<td>' + a.durationSec.toFixed(1) + '</td>'
+            + '<td>' + a.priority + '</td>'
+            + '</tr>';
+        }
+        html += '</tbody></table>';
+
+        listDiv.innerHTML = html;
+
+        pageInfo.textContent = currentPage + ' / ' + totalPages;
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+
+        const rows = listDiv.querySelectorAll('.assignment-row');
+        rows.forEach((row) => {
+          row.addEventListener('click', () => {
+            const idx = Number(row.getAttribute('data-index'));
+            const a = assignments.find((x) => x.index === idx);
+            if (!a) return;
+
+            viewer.clock.currentTime = a.start;
+            viewer.clock.shouldAnimate = true;
+
+            listDiv.querySelectorAll('.assignment-row').forEach((r) => {
+              r.classList.toggle('active', r === row);
+            });
+          });
+        });
+      }
+
+      prevBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderPage();
+        }
+      });
+
+      nextBtn.addEventListener('click', () => {
+        const totalPages = Math.ceil(assignments.length / pageSize);
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderPage();
+        }
+      });
+
+      renderPage();
+      viewer._scenarioAssignments = assignments;
+    }
+
+    // ===== 6. Draw Lime connection lines for active assignments =====
+    function setupScheduleLink(schedule, ds) {
+      const assignments = viewer._scenarioAssignments || [];
+      if (!assignments.length) return;
+
+      function getActiveAssignment(time) {
+        for (let i = 0; i < assignments.length; i++) {
+          const a = assignments[i];
+          if (
+            Cesium.JulianDate.lessThanOrEquals(a.start, time) &&
+            Cesium.JulianDate.lessThanOrEquals(time, a.end)
+          ) {
+            return a;
+          }
+        }
+        return null;
+      }
+
+      viewer.entities.add({
+        id: 'scheduled-link',
+        polyline: {
+          positions: new Cesium.CallbackProperty(function (time, result) {
+            const active = getActiveAssignment(time);
+            if (!active) return null;
+
+            const satEntity = ds.entities.getById(active.satellite_id);
+            const targetEntity = ds.entities.getById(active.task_id);
+            if (!satEntity || !satEntity.position || !targetEntity || !targetEntity.position) {
+              return null;
+            }
+            const satPos = satEntity.position.getValue(time);
+            const tgtPos = targetEntity.position.getValue(time);
+            if (!satPos || !tgtPos) return null;
+
+            if (!Array.isArray(result)) result = [];
+            result.length = 0;
+            result.push(satPos, tgtPos);
+            return result;
+          }, false),
+          width: 2,
+          material: Cesium.Color.LIME
+        }
+      });
+    }
+
+    // ===== 7. Layer Visibility Controls =====
+    function setupVisibilityControls(ds) {
+      const satellites = [];
+      const targets = [];
+
+      const allEntities = ds.entities.values;
+      for (let i = 0; i < allEntities.length; i++) {
+        const e = allEntities[i];
+        if (Cesium.defined(e.path)) {
+          satellites.push(e);
+        } else if (Cesium.defined(e.point)) {
+          targets.push(e);
+        }
+      }
+
+      viewer._satelliteEntities = satellites;
+      viewer._targetEntities = targets;
+
+      const satTrackCb = document.getElementById('toggleSatTrack');
+      const satLabelCb = document.getElementById('toggleSatLabel');
+      const satPointCb = document.getElementById('toggleSatPoint');
+      const tgtLabelCb = document.getElementById('toggleTargetLabel');
+      const tgtPointCb = document.getElementById('toggleTargetPoint');
+
+      function setSatTrackVisible(show) {
+        satellites.forEach((s) => { if (s.path) s.path.show = show; });
+      }
+      function setSatLabelVisible(show) {
+        satellites.forEach((s) => { if (s.label) s.label.show = show; });
+      }
+      function setSatPointVisible(show) {
+        satellites.forEach((s) => { if (s.point) s.point.show = show; });
+      }
+      function setTargetLabelVisible(show) {
+        targets.forEach((t) => { if (t.label) t.label.show = show; });
+      }
+      function setTargetPointVisible(show) {
+        targets.forEach((t) => { if (t.point) t.point.show = show; });
+      }
+
+      if (satTrackCb) {
+        satTrackCb.addEventListener('change', () => setSatTrackVisible(satTrackCb.checked));
+      }
+      if (satLabelCb) {
+        satLabelCb.addEventListener('change', () => setSatLabelVisible(satLabelCb.checked));
+      }
+      if (satPointCb) {
+        satPointCb.addEventListener('change', () => setSatPointVisible(satPointCb.checked));
+      }
+      if (tgtLabelCb) {
+        tgtLabelCb.addEventListener('change', () => setTargetLabelVisible(tgtLabelCb.checked));
+      }
+      if (tgtPointCb) {
+        tgtPointCb.addEventListener('change', () => setTargetPointVisible(tgtPointCb.checked));
+      }
+    }
+
+    // ===== 8. Gantt Chart Navigation =====
+    function setupGanttButton() {
+      const btn = document.getElementById('openGanttBtn');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        const scheduleUrl = getScheduleUrl();
+        const target = 'gantt_viewer.html?schedule=' + encodeURIComponent(scheduleUrl);
+        window.open(target, '_blank');
+      });
+    }
+  </script>
+</body>
+</html>
