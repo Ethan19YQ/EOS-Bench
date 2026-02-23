@@ -148,7 +148,6 @@ Saved models include:
 * Policy weights
 * Optimizer state
 * Episode index
-* RNG states (for reproducibility)
 
 ---
 
