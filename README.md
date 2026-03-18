@@ -1,7 +1,7 @@
 # 🚀  EOS-Bench
 **A unified and extensible benchmark platform for **Earth Observation (EO) satellite scheduling**.**
 
-[HuggingFace Dataset](https://huggingface.co/datasets/your-dataset)
+[Dataset](https://huggingface.co/datasets/your-dataset)
 
 Designed to tackle the complexities of large-scale constellation management, this project bridges the gap between traditional operations research and modern AI scheduling techniques. It features a complete pipeline from scenario generation (powered by Orekit) and diverse algorithm benchmarking, to interactive 3D visualization.
 
