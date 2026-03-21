@@ -33,8 +33,6 @@ Depending on the release version, it may include benchmark assets such as:
 
 - constellation configuration files
 - city / target definition files
-- generated scenario JSON files
-- benchmark-ready input data for scheduling experiments
 
 In short:
 
