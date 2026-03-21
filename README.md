@@ -1,89 +1,148 @@
-# 🚀  EOS-Bench
-**A unified and extensible benchmark platform for **Earth Observation (EO) satellite scheduling**.**
+# 🚀 EOS-Bench
+**A unified and extensible benchmark platform for Earth Observation (EO) satellite scheduling**
 
-[Dataset](https://huggingface.co/datasets/Ethan19YQ/EOS-Bench/tree/main)
+[Dataset on Hugging Face](https://huggingface.co/datasets/Ethan19YQ/EOS-Bench/tree/main)
 
-Designed to tackle the complexities of large-scale constellation management, this project bridges the gap between traditional operations research and modern AI scheduling techniques. It features a complete pipeline from scenario generation (powered by Orekit) and diverse algorithm benchmarking, to interactive 3D visualization.
+EOS-Bench is a research-oriented benchmark platform for **Earth observation satellite scheduling**.  
+It is designed to support **reproducible algorithm comparison**, **large-scale scenario generation**, and **end-to-end evaluation** across classical operations research methods and modern AI-based schedulers.
+
+The platform covers the full workflow of EO scheduling experiments:
+
+- realistic scenario generation based on **Orekit**
+- unified constraint modeling for different satellite types
+- standardized evaluation across multiple objectives
+- benchmarking of exact, heuristic, meta-heuristic, and reinforcement learning methods
+- dynamic **3D visualization** of orbits and schedules through **Cesium**
+
+EOS-Bench is particularly suitable for studies on:
+
+- large-scale constellation scheduling
+- agile / non-agile EO mission planning
+- algorithm scalability analysis
+- RL versus classical optimization comparison
+- reproducible scheduling benchmarks for academic research
 
 ---
 
-This project provides:
+## 📦 Dataset
 
-* 📦 A scalable scenario generation framework (1–1000 satellites, 1h–168h horizon)
-* ⚙️ A unified constraint & evaluation model
-* 🧠 Multiple scheduling paradigms:
+The accompanying **EOS-Bench dataset** provides the concrete benchmark data used with this platform.
 
-  * MIP (Exact Optimization)
-  * Heuristics
-  * Meta-heuristics (SA / GA / ACO)
-  * PPO Reinforcement Learning
-* 📊 Standardized performance metrics
-* 🌍 3D dynamic visualization via Cesium
+It is intended to serve as the **data companion** of the codebase, making experiments easier to reproduce and compare.  
+Depending on the release version, it may include benchmark assets such as:
+
+- constellation configuration files
+- city / target definition files
+- generated scenario JSON files
+- benchmark-ready input data for scheduling experiments
+
+In short:
+
+- the **repository** provides the benchmark **engine**
+- the **dataset** provides the benchmark **data**
+
+This separation makes EOS-Bench easier to extend, reproduce, and share across different experiment settings.
 
 ---
 
 ## 🔥 Key Features
 
-* **Scalable Scenario Generation**: Generate realistic tasks and orbital mechanics for constellations ranging from 1 to 1000+ satellites over 1h–168h horizons. Supports randomized mission distributions or precise JSON-based city targets.
-* **High-Fidelity Constraint Modeling**: Natively supports **Agile and Non-Agile** satellites with piecewise attitude transition time models (Δroll, Δpitch, Δyaw), power consumption, and data storage limits.
-* **High-Performance Candidate Pool**: Employs truncated, diversified candidate sampling (Earliest, Center, Latest, Random) coupled with Early Accept and dynamic sampling techniques to keep complexity at O(T · K) for massive scales.
-* **Unified Multi-Objective Optimization**: Standardized 0~1 normalized evaluation for Profit, Completion Rate, Timeliness, and Balance Degree.
-* **Automated 3D Visualization**: One-click generation of CZML files for dynamic orbit and scheduling visualization via Cesium.
+### 1. Scalable scenario generation
+Generate EO scheduling scenarios for constellations ranging from **1 to 1000+ satellites** and planning horizons from **1 hour to 168 hours**.
+
+### 2. High-fidelity constraint modeling
+Supports both **Agile** and **Non-Agile** satellites, including:
+
+- visibility constraints
+- attitude transition time modeling
+- power limits
+- onboard storage limits
+- communication / downlink constraints
+
+### 3. Unified benchmark interface
+All algorithms are evaluated under a **shared constraint model** and a **standardized metric system**, enabling fair comparison across methods.
+
+### 4. Multiple scheduling paradigms
+EOS-Bench integrates representative methods from several families:
+
+- **MIP** (Exact Optimization)
+- **Heuristics**
+- **Meta-heuristics**: SA / GA / ACO
+- **Reinforcement Learning**: PPO
+
+### 5. Multi-objective evaluation
+The benchmark supports unified normalized evaluation for:
+
+- **TP**: Task Profit
+- **TCR**: Task Completion Rate
+- **TM**: Timeliness Metric
+- **BD**: Balance Degree
+- **RT**: Runtime
+
+### 6. Interactive 3D visualization
+Generated schedules can be visualized through **CZML + Cesium**, enabling dynamic inspection of:
+
+- orbital motion
+- observation execution
+- schedule results over time
 
 ---
 
 ## 📂 Project Structure
 
-```
+```text
 Satellite_Benchmark/
 │
-├── algorithms/          # Algorithm implementations & Factory
-│   ├── mip.py           # MILP formulation (PuLP)
-│   ├── heuristics.py    # TP, TCR, TM, BD heuristic schedulers
-│   ├── meta_*.py        # SA, GA, ACO implementations
-│   ├── ppo/             # PPO Policy, Agent, and RL training loops
-│   ├── candidate_pool.py# Diverse candidate window generation
-│   └── objectives.py    # Multi-objective scoring models
+├── algorithms/              # Algorithm implementations and factory
+│   ├── mip.py               # MILP formulation
+│   ├── heuristics.py        # TP / TCR / TM / BD heuristic schedulers
+│   ├── meta_*.py            # SA, GA, ACO implementations
+│   ├── ppo/                 # PPO policy, agent, and training logic
+│   ├── candidate_pool.py    # Candidate observation window generation
+│   └── objectives.py        # Multi-objective scoring models
 │
-├── core/                # Static domain models & Scenario generation
-├── schedulers/          # Constraint models, transition utils, RL env
-├── draw/                # Cesium 3D visualization tools
-├── input/               # Constellation setups & target data (e.g., cities.json)
-├── output/              # Generated scenarios, schedules, RL models, logs
+├── core/                    # Static domain models and scenario generation
+├── schedulers/              # Constraint models, scheduling engine, RL env
+├── draw/                    # Cesium visualization utilities
+├── input/                   # Constellation definitions and target data
+│   └── cities_data/         # JSON target files for city-based scenarios
+├── output/                  # Generated scenarios, schedules, models, logs
 │
-├── main_generate.py     # Script to generate benchmark scenarios
-├── main_scheduler.py    # Main entry to run benchmark algorithms & train RL
-└── main_draw.py         # Launch local server for 3D visualization
-```
+├── main_generate.py         # Generate benchmark scenarios
+├── main_scheduler.py        # Run algorithms / benchmark / train RL
+└── main_draw.py             # Visualize scenario and schedule in Cesium
+````
 
 ---
 
 ## 📊 Evaluation Metrics
 
-All algorithms are evaluated using unified metrics:
+All algorithms are evaluated using the same metric definitions:
 
 | Metric | Description          |
 | ------ | -------------------- |
 | TP     | Task Profit          |
 | TCR    | Task Completion Rate |
-| BD     | Balance Degree       |
 | TM     | Timeliness Metric    |
+| BD     | Balance Degree       |
 | RT     | Runtime              |
+
+This unified metric layer makes EOS-Bench suitable for controlled and reproducible cross-method comparison.
 
 ---
 
 ## 🛠 Installation
 
-### 1️⃣ Install Java (Required for Orekit)
+### 1. Install Java (required by Orekit)
 
 ```bash
 sudo apt update
 sudo apt install -y openjdk-17-jdk
 ```
 
-### 2️⃣ Install Python Dependencies
+### 2. Install Python dependencies
 
-Python 3.10 recommended.
+Python **3.10** is recommended.
 
 ```bash
 pip install "orekit-jpype[jdk4py]" "jpype1==1.5.2"
@@ -95,91 +154,421 @@ pip install torch
 
 ## 🚀 Quick Start
 
-### Step 1 — Generate Benchmark Scenarios
+This section walks through a **complete minimal example**:
+
+* generate one EO scenario
+* run one scheduling algorithm
+* visualize the result in 3D
+
+The example below uses:
+
+* **20 satellites**
+* **20 missions**
+* **1-day horizon**
+* **SA** as the scheduling algorithm
+* **profit-only objective** (`TP`)
+
+---
+
+### Step 1. Generate a scenario
+
+Open `main_generate.py` and set the configuration near the bottom as follows:
+
+```python
+if __name__ == "__main__":
+
+    satellite_files = [
+        "20_satellites",
+    ]
+
+    time_period_days_list = [1]
+
+    missions_number = [
+        (20,),
+    ]
+
+    ground_stations_dict = {}
+
+    targets_file_name = None
+
+    run_all_scenarios(
+        satellite_files=satellite_files,
+        time_period_days_list=time_period_days_list,
+        missions_number=missions_number,
+        ground_stations_dict=ground_stations_dict,
+        targets_file_name=targets_file_name,
+        max_workers=1,
+    )
+```
+
+Then run:
 
 ```bash
 python main_generate.py
 ```
 
-Scenarios are saved in:
+This will generate a scenario JSON under:
 
+```text
+output/
 ```
-output/Scenario_*.json
+
+A typical output filename is:
+
+```text
+output/Scenario_S1_Sats20_M20_T1.0d_dist1.json
 ```
+
+It will also generate a scenario summary file such as:
+
+```text
+output/scenario_summary_YYYYMMDD_HHMMSS.txt
+```
+
+#### Notes
+
+* `targets_file_name = None` means **random mission generation**
+* if you set `targets_file_name = "cities_01.json"` or a list such as `["cities_01", "cities_02"]`, the generator will load targets from `input/cities_data/`
+* in **city-target mode**, the actual mission count is determined by the target file, not by `missions_number`
 
 ---
 
-### Step 2 — Run Benchmark / Train RL
+### Step 2. Run a scheduling algorithm
+
+Open `main_scheduler.py` and keep a simple benchmark configuration such as:
+
+```python
+def main():
+    placement_mode = "earliest"
+    downlink_duration_ratio = 1.0
+    unassigned_penalty = 1000.0
+    agility_profile = "Standard-Agility"
+    non_agile_transition_s = 10.0
+
+    rl_do_train = False
+    rl_do_test = True
+
+    algo_specs = [
+        {"class_id": 3, "algo_name": "sa", "cfg_overrides": {}},
+    ]
+
+    objective_loop = [
+        ObjectiveWeights(
+            w_profit=1.0,
+            w_completion=0.0,
+            w_timeliness=0.0,
+            w_balance=0.0,
+        ),
+    ]
+
+    ...
+```
+
+Then run:
 
 ```bash
 python main_scheduler.py
 ```
 
-Outputs:
+This will:
 
-* Schedule results → `output/schedules/`
-* RL models → `output/models/`
-* Performance logs → `runlog_*.txt`
+1. scan all `Scenario_*.json` files under `output/`
+2. run the selected algorithm(s)
+3. save schedule files and figures under:
+
+```text
+output/schedules/
+```
+
+For the example above, a typical schedule filename is:
+
+```text
+output/schedules/scheduler_Scenario_S1_Sats20_M20_T1.0d_dist1_c3_sa_p1_c0_t0_b0.json
+```
+
+Additional outputs include:
+
+* schedule JSON
+* Gantt chart PNG
+* batch run log, e.g. `runlog_batch_YYYYMMDD_HHMMSS.txt`
 
 ---
 
-### Step 3 — 3D Visualization
+### Step 3. Visualize the schedule in 3D
 
-Edit scenario & schedule names in `main_draw.py`, then run:
+Open `main_draw.py` and set:
+
+```python
+if __name__ == "__main__":
+    scenario_file = "Scenario_S1_Sats20_M20_T1.0d_dist1"
+    schedule_file = "scheduler_Scenario_S1_Sats20_M20_T1.0d_dist1_c3_sa_p1_c0_t0_b0"
+    main_draw(scenario_file, schedule_file)
+```
+
+Then run:
 
 ```bash
 python main_draw.py
 ```
 
-A browser window will open with dynamic 3D visualization.
+This will:
+
+1. generate `draw/orbit.czml`
+2. start a local HTTP server
+3. open the Cesium viewer in your browser
+
+You can then inspect:
+
+* satellite orbits
+* mission geometry
+* scheduling results over time
+
+---
+
+## 🧪 Workflow Summary
+
+A typical EOS-Bench experiment follows this pipeline:
+
+```text
+1. Configure main_generate.py
+2. Run main_generate.py
+3. Configure main_scheduler.py
+4. Run main_scheduler.py
+5. Configure main_draw.py
+6. Run main_draw.py
+```
+
+---
+
+## ⚙️ Scenario Generation Modes
+
+EOS-Bench supports two main scenario-generation modes.
+
+### Random mode
+
+Use:
+
+```python
+targets_file_name = None
+```
+
+This will generate mission targets according to predefined random geographic distributions.
+
+### Target-file mode
+
+Use:
+
+```python
+targets_file_name = "cities_01.json"
+```
+
+or
+
+```python
+targets_file_name = ["cities_01", "cities_02"]
+```
+
+This loads targets from:
+
+```text
+input/cities_data/
+```
+
+This mode is useful when you want:
+
+* fixed benchmark targets
+* reproducible case studies
+* city-specific scheduling experiments
 
 ---
 
 ## 🧠 Reinforcement Learning (PPO)
 
+EOS-Bench includes a PPO-based scheduler for learning-based EO scheduling experiments.
+
 The PPO module supports:
 
-* Multi-objective weighted training
-* Periodic checkpoint saving
-* Automatic resume training
-* Independent train/test mode
-* Scenario resampling control (every N episodes)
+* train / test separation
+* weighted multi-objective training
+* checkpoint saving
+* automatic resume
+* scenario resampling every N episodes
+* independent model files for different objective weights
 
-Saved models include:
+Typical saved artifacts include:
 
-* Policy weights
-* Optimizer state
-* Episode index
+* policy weights
+* optimizer state
+* episode index
+
+### To enable PPO training
+
+In `main_scheduler.py`, enable PPO in `algo_specs` and set:
+
+```python
+rl_do_train = True
+```
+
+For example:
+
+```python
+algo_specs = [
+    {"class_id": 4, "algo_name": "ppo", "cfg_overrides": {}},
+]
+```
+
+### To test a trained PPO model
+
+Set:
+
+```python
+rl_do_test = True
+test_model_paths = [
+    MODELS_DIR / "ppo_model_p1_c0_t0_b0.pt"
+]
+```
+
+---
+
+## 🧩 Supported Algorithm Classes
+
+EOS-Bench currently supports the following algorithm classes:
+
+| Class ID | Type               | Examples                                                        |
+| -------- | ------------------ | --------------------------------------------------------------- |
+| 1        | Exact optimization | MIP                                                             |
+| 2        | Heuristics         | completion-first, profit-first, balance-first, timeliness-first |
+| 3        | Meta-heuristics    | SA, GA, ACO                                                     |
+| 4        | Learning-based     | PPO                                                             |
+
+This makes the platform suitable for both **classical OR benchmarking** and **modern AI scheduling studies**.
+
+---
+
+## 📁 Output Files
+
+### Scenario generation outputs
+
+Saved under:
+
+```text
+output/
+```
+
+Typical files:
+
+* `Scenario_*.json`
+* `scenario_summary_*.txt`
+
+### Scheduling outputs
+
+Saved under:
+
+```text
+output/schedules/
+```
+
+Typical files:
+
+* `scheduler_*.json`
+* `scheduler_*.png`
+* `runlog_batch_*.txt`
+
+### RL model outputs
+
+Saved under:
+
+```text
+output/models/
+```
+
+Typical files:
+
+* `ppo_model_*.pt`
+
+### Visualization output
+
+Saved under:
+
+```text
+draw/orbit.czml
+```
 
 ---
 
 ## ➕ Adding New Algorithms
 
-1. Implement your algorithm in `algorithms/`
-2. Follow the unified interface
-3. Register in `factory.py`
-4. Add to `algo_specs` in `main_scheduler.py`
+To add a new algorithm:
 
-It will automatically integrate into batch benchmarking.
+1. implement it in `algorithms/`
+2. follow the existing unified scheduler interface
+3. register it in the algorithm factory
+4. add it to `algo_specs` in `main_scheduler.py`
+
+Once registered, it can be integrated into the same benchmark workflow and evaluated with the same output pipeline.
 
 ---
 
 ## 📈 Designed For
 
-* Algorithm comparison studies
-* Scalability analysis
-* RL vs classical optimization research
-* Reproducible scheduling experiments
-* Engineering validation
+EOS-Bench is designed for:
+
+* algorithm comparison studies
+* constellation scheduling scalability analysis
+* EO benchmark construction
+* reproducible scheduling experiments
+* RL versus classical optimization studies
+* engineering-oriented validation and visualization
 
 ---
 
 ## 📌 Notes
 
-* Visibility computation is powered by **Orekit**
-* All algorithms share a unified constraint model
-* Designed for large-scale EO constellation scheduling research
+* visibility computation is powered by **Orekit**
+* all algorithms share a **unified constraint and evaluation model**
+* the current workflow is **script-config driven**: users typically modify key variables in `main_generate.py`, `main_scheduler.py`, and `main_draw.py` before running experiments
+* Cesium visualization depends on a local HTTP server started by `main_draw.py`
 
 ---
 
+## 📚 Citation / Acknowledgement
 
+If EOS-Bench helps your research, please consider citing the project repository and dataset in your experimental setup or benchmark section.
+
+---
+
+## 🌍 Related Resources
+
+* **Codebase**: this repository
+* **Dataset**: [EOS-Bench on Hugging Face](https://huggingface.co/datasets/Ethan19YQ/EOS-Bench/tree/main)
+
+---
+
+## ✅ Minimal Reproducible Example
+
+For a first run, use exactly this setup:
+
+* `main_generate.py`
+
+  * `satellite_files = ["20_satellites"]`
+  * `time_period_days_list = [1]`
+  * `missions_number = [(20,)]`
+  * `targets_file_name = None`
+
+* `main_scheduler.py`
+
+  * `algo_specs = [{"class_id": 3, "algo_name": "sa", "cfg_overrides": {}}]`
+  * `objective_loop = [ObjectiveWeights(1.0, 0.0, 0.0, 0.0)]`
+
+* `main_draw.py`
+
+  * `scenario_file = "Scenario_S1_Sats20_M20_T1.0d_dist1"`
+  * `schedule_file = "scheduler_Scenario_S1_Sats20_M20_T1.0d_dist1_c3_sa_p1_c0_t0_b0"`
+
+Then run:
+
+```bash
+python main_generate.py
+python main_scheduler.py
+python main_draw.py
+```
