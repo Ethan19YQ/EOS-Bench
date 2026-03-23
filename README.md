@@ -1,4 +1,3 @@
-````markdown
 # 🚀 EOS-Bench
 **A unified and extensible benchmark platform for Earth Observation (EO) satellite scheduling**
 
@@ -133,13 +132,9 @@ EOS-Bench/
 ├── output/                      # Generated scenarios, schedules, models, and logs
 │
 ├── main_generate.py             # Scenario generation entry
-├── main.py                      # Scheduling / benchmarking / PPO train-test entry
+├── main_scheduler.py            # Scheduling / benchmarking / PPO train-test entry
 └── main_draw.py                 # Visualization entry
-````
 
-> If your local repository still uses `main_scheduler.py` as the filename, simply replace `main.py` with `main_scheduler.py` in the commands below.
-
----
 
 ## 📊 Evaluation Metrics
 
