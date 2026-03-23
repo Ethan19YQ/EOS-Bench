@@ -262,7 +262,7 @@ output/scenario_summary_YYYYMMDD_HHMMSS.txt
 
 ### Step 2. Run a scheduling algorithm
 
-Open `main.py` and keep a simple benchmark configuration such as:
+Open `main_scheduler.py` and keep a simple benchmark configuration such as:
 
 ```python
 def main():
@@ -294,7 +294,7 @@ def main():
 Then run:
 
 ```bash
-python main.py
+python main_scheduler.py
 ```
 
 This will:
@@ -373,8 +373,8 @@ A typical EOS-Bench experiment follows this pipeline:
 ```text
 1. Configure main_generate.py
 2. Run main_generate.py
-3. Configure main.py
-4. Run main.py
+3. Configure main_scheduler.py
+4. Run main_scheduler.py
 5. Configure main_draw.py
 6. Run main_draw.py
 ```
@@ -445,7 +445,7 @@ Typical saved artifacts include:
 
 ### To enable PPO training
 
-In `main.py`, enable PPO in `algo_specs` and set:
+In `main_scheduler.py`, enable PPO in `algo_specs` and set:
 
 ```python
 rl_do_train = True
@@ -547,7 +547,7 @@ To add a new algorithm:
 1. implement it in `algorithms/`
 2. follow the existing unified scheduler interface
 3. register it in the algorithm factory
-4. add it to `algo_specs` in `main.py`
+4. add it to `algo_specs` in `main_scheduler.py`
 
 Once registered, it can be integrated into the same benchmark workflow and evaluated with the same output pipeline.
 
@@ -571,7 +571,7 @@ EOS-Bench is designed for:
 * visibility computation is powered by **Orekit**
 * all algorithms share a **unified constraint and evaluation model**
 * the current workflow is **script-config driven**
-* users typically modify key variables in `main_generate.py`, `main.py`, and `main_draw.py` before running experiments
+* users typically modify key variables in `main_generate.py`, `main_scheduler.py`, and `main_draw.py` before running experiments
 * Cesium visualization depends on the local HTTP server started by `main_draw.py`
 
 ---
@@ -602,7 +602,7 @@ missions_number = [(20,)]
 targets_file_name = None
 ```
 
-### `main.py`
+### `main_scheduler.py`
 
 ```python
 algo_specs = [
@@ -625,7 +625,7 @@ Then run:
 
 ```bash
 python main_generate.py
-python main.py
+python main_scheduler.py
 python main_draw.py
 ```
 
