@@ -12,7 +12,7 @@
         <b>Visualisation</b>
         <img src="./docs/visualisation.gif" width="100%" alt=""/>
         <br/>
-        ✨ <b>Interactive 3D Demo:</b> <a href="https://ethan19yq.github.io/EOS-Bench/cesium_viewer.html?scenario_name=Scenario_S1_Sats10_M200_T0.5d_dist0&runlog=runlog_batch_20260427_172355.txt">Click here to view the live schedule demo!</a> ✨
+        ✨ <b>Interactive 3D Demo:</b> <a href="https://ethan19yq.github.io/EOS-Bench/cesium_viewer.html?scenario_name=Scenario_S1_Sats20_M500_T0.5d_dist0&runlog=runlog_batch_20260427_191631.txt">Click here to view the live schedule demo!</a> ✨
     </td>
   </tr>
 </table>
@@ -611,6 +611,6 @@ If EOS-Bench helps your research, please consider citing the project repository 
 
 * **Codebase**: this repository
 * **Dataset**: [EOS-Bench on Hugging Face](https://huggingface.co/datasets/Ethan19YQ/EOS-Bench/tree/main)
-* **3D visualisation**:[View Demo Schedule](https://ethan19yq.github.io/EOS-Bench/cesium_viewer.html?scenario_name=Scenario_S1_Sats10_M200_T0.5d_dist0&runlog=runlog_batch_20260427_172355.txt)
+* **3D visualisation**:[View Demo Schedule](https://ethan19yq.github.io/EOS-Bench/cesium_viewer.html?scenario_name=Scenario_S1_Sats20_M500_T0.5d_dist0&runlog=runlog_batch_20260427_191631.txt)
 
 ```
