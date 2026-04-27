@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Metrics Visual Comparison</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+      background: #0b1020; 
+      color: #f5f5f5; 
+      margin: 0; 
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    /* Sidebar Styles */
+    #sidebar {
+      width: 280px;
+      background: rgba(12, 18, 40, 0.96);
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 20px;
+      overflow-y: auto;
+      box-sizing: border-box;
+      flex-shrink: 0;
+    }
+    .filter-section {
+      margin-bottom: 25px;
+    }
+    .filter-section h4 {
+      color: #67b2ff;
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 5px;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .checkbox-row input {
+      margin-right: 8px;
+      cursor: pointer;
+    }
+    .checkbox-label {
+      opacity: 0.85;
+      word-break: break-word;
+      display: flex;
+      align-items: center;
+    }
+    .checkbox-row:hover .checkbox-label {
+      opacity: 1;
+      color: #fff;
+    }
+    .colour-box {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-left: 8px;
+      border-radius: 2px;
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+
+    /* Main Content Styles */
+    #main-content {
+      flex: 1;
+      padding: 20px 40px;
+      overflow-y: auto;
+      box-sizing: border-box;
+    }
+    .container { 
+      max-width: 1400px; 
+      margin: 0 auto; 
+    }
+    h2#title { 
+      color: #67b2ff; 
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+      padding-bottom: 15px; 
+      margin: 0 0 5px 0;
+      font-size: 24px;
+    }
+    #sourceInfo { 
+      font-size: 13px; 
+      opacity: 0.6; 
+      margin-bottom: 30px; 
+    }
+    #errorBox { 
+      background: rgba(220, 38, 38, 0.15); 
+      color: #fecaca; 
+      padding: 12px; 
+      border-radius: 6px; 
+      border: 1px solid rgba(220, 38, 38, 0.3);
+      display: none; 
+      margin-bottom: 20px; 
+    }
+
+    /* Layout */
+    .metric-section { 
+      margin-bottom: 50px; 
+      background: rgba(12, 18, 40, 0.6);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .metric-title {
+      font-size: 20px;
+      color: #fff;
+      margin-top: 0;
+      margin-bottom: 20px;
+      padding-left: 10px;
+      border-left: 4px solid #67b2ff;
+    }
+    .charts-grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); 
+      gap: 20px; 
+    }
+    
+    /* Chart Cards */
+    .chart-card { 
+      background: rgba(20, 30, 60, 0.8); 
+      border: 1px solid rgba(255, 255, 255, 0.08); 
+      border-radius: 8px; 
+      padding: 15px; 
+      display: flex;
+      flex-direction: column;
+    }
+    .chart-card:hover {
+      border-color: rgba(103, 178, 255, 0.3);
+    }
+    .obj-title { 
+      font-size: 13px; 
+      color: #aaa; 
+      text-align: center; 
+      margin-bottom: 12px; 
+      word-break: break-all;
+      min-height: 38px;
+    }
+    
+    /* Controls */
+    .controls { 
+      display: flex; 
+      justify-content: center; 
+      gap: 8px; 
+      margin-bottom: 15px; 
+    }
+    .controls button { 
+      background: rgba(255, 255, 255, 0.05); 
+      color: #ccc; 
+      border: 1px solid rgba(255, 255, 255, 0.2); 
+      padding: 4px 12px; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-size: 12px; 
+      transition: all 0.2s;
+    }
+    .controls button:hover { 
+      background: rgba(103, 178, 255, 0.2); 
+      border-color: #67b2ff;
+      color: #fff;
+    }
+    .controls button.active { 
+      background: #67b2ff; 
+      color: #0b1020;
+      border-color: #67b2ff;
+      font-weight: 600;
+    }
+    
+    .canvas-container {
+      position: relative;
+      flex: 1;
+      min-height: 280px;
+    }
+    .canvas-container.radar-container {
+      min-height: 400px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <div class="filter-section">
+      <h4>Metrics</h4>
+      <div id="filter-metrics"></div>
+    </div>
+    <div class="filter-section">
+      <h4>Algorithms</h4>
+      <div id="filter-algos"></div>
+    </div>
+    <div class="filter-section">
+      <h4>Objectives</h4>
+      <div id="filter-objs"></div>
+    </div>
+  </div>
+
+  <div id="main-content">
+    <div class="container">
+      <h2 id="title">Algorithm Performance Comparison</h2>
+      <div id="sourceInfo">Loading...</div>
+      <div id="errorBox"></div>
+      <div id="metricsContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    window.chartInstances = {};
+    window.chartDataStore = {};
+    
+    let parsedData = [];
+    let uniqueAlgos = [];
+    let uniqueObjs = [];
+    const algoClassMap = {};
+    
+    const METRICS_CONFIG = [
+      { key: 'tp', name: 'Total Profit (TP)' },
+      { key: 'tcr', name: 'Completion Rate (TCR)' },
+      { key: 'bd', name: 'Balance Degree (BD)' },
+      { key: 'tm', name: 'Timeliness (TM)' },
+      { key: 'rt', name: 'Runtime (RT) [s]' }
+    ];
+
+    const COLOUR_PALETTE = [
+      '#67b2ff', '#4ade80', '#fbbf24', '#f472b6', '#f87171',
+      '#2dd4bf', '#a78bfa', '#fb923c', '#94a3b8', '#38bdf8',
+      '#818cf8', '#34d399', '#fef08a', '#fda4af', '#c084fc'
+    ];
+    const algoColours = {};
+    let colourIndex = 0;
+
+    function getAlgoColour(algoName) {
+      if (!algoColours[algoName]) {
+        algoColours[algoName] = COLOUR_PALETTE[colourIndex % COLOUR_PALETTE.length];
+        colourIndex++;
+      }
+      return algoColours[algoName];
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const logUrl = params.get('runlog');
+    const scenarioName = params.get('scenario_name');
+
+    if (!logUrl || !scenarioName) {
+      showError("Missing URL parameters (scenario_name or runlog).");
+    } else {
+      document.getElementById('title').textContent = `Metrics Comparison: ${scenarioName}`;
+      document.getElementById('sourceInfo').textContent = `Source Log: ${logUrl}`;
+      
+      fetch(logUrl)
+        .then(r => {
+            if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+            return r.text();
+        })
+        .then(txt => processLog(txt))
+        .catch(e => showError("Error loading log: " + e.message));
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      box.textContent = msg;
+      box.style.display = 'block';
+    }
+
+    function transformData(algo, obj) {
+      const matchKey = algo.trim();
+      const objMatchKey = obj.trim();
+      
+      const applyGreedy = (targetObj) => {
+        return { algo: 'Greedy', obj: targetObj };
+      };
+
+      if (matchKey === 'implicit(balance_first)' || objMatchKey === 'implicit(balance_first)') {
+        return applyGreedy('profit=0,completion=0,timeliness=0,balance=1');
+      } else if (matchKey === 'implicit(profit_first)' || objMatchKey === 'implicit(profit_first)') {
+        return applyGreedy('profit=1,completion=0,timeliness=0,balance=0');
+      } else if (matchKey === 'implicit(completion_first)' || objMatchKey === 'implicit(completion_first)') {
+        return applyGreedy('profit=0,completion=1,timeliness=0,balance=0');
+      } else if (matchKey === 'implicit(timeliness_first)' || objMatchKey === 'implicit(timeliness_first)') {
+        return applyGreedy('profit=0,completion=0,timeliness=1,balance=0');
+      }
+
+      return { algo: matchKey, obj: objMatchKey };
+    }
+
+    function compareByClass(algoA, classA, algoB, classB) {
+      const numA = Number(classA);
+      const numB = Number(classB);
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        if (numA !== numB) return numA - numB;
+      } else {
+        const strA = String(classA || '');
+        const strB = String(classB || '');
+        const cmp = strA.localeCompare(strB);
+        if (cmp !== 0) return cmp;
+      }
+      return String(algoA).localeCompare(String(algoB));
+    }
+
+    function processLog(text) {
+      const lines = text.split('\n');
+      const headerLine = lines.find(l => l.includes('| Scenario') && l.includes('| Algo'));
+      
+      if (!headerLine) {
+        showError("Could not find standard table headers in the runlog text.");
+        return;
+      }
+
+      const cols = headerLine.split('|').map(s => s.trim());
+      const getIdx = (name) => cols.indexOf(name);
+      const indices = { 
+        algo: getIdx('Algo'), class: getIdx('Class'), obj: getIdx('Objective'), 
+        tp: getIdx('TP'), tcr: getIdx('TCR'), bd: getIdx('BD'), tm: getIdx('TM'), rt: getIdx('RT(s)') 
+      };
+
+      const dataMap = new Map();
+
+      lines.forEach(line => {
+        if (line.includes('|') && line.includes(scenarioName + '.json')) {
+          const parts = line.split('|').map(s => s.trim());
+          
+          const rawAlgo = parts[indices.algo];
+          const rawObj = parts[indices.obj];
+          const rawClass = indices.class !== -1 ? parts[indices.class] : '0';
+          
+          if (!rawAlgo || !rawObj) return;
+
+          const transformed = transformData(rawAlgo, rawObj);
+          
+          const entry = {
+            algo: transformed.algo,
+            classVal: rawClass,
+            obj: transformed.obj,
+            tp: parseFloat(parts[indices.tp]),
+            tcr: parseFloat(parts[indices.tcr]),
+            bd: parseFloat(parts[indices.bd]),
+            tm: parseFloat(parts[indices.tm]),
+            rt: parseFloat(parts[indices.rt])
+          };
+
+          if (!algoClassMap[entry.algo]) {
+            algoClassMap[entry.algo] = entry.classVal;
+          }
+
+          const uniqueKey = `${entry.algo}::${entry.obj}`;
+          dataMap.set(uniqueKey, entry);
+        }
+      });
+
+      parsedData = Array.from(dataMap.values());
+
+      if (parsedData.length === 0) {
+        showError("No matching scenario data found in log.");
+        return;
+      }
+
+      uniqueAlgos = [...new Set(parsedData.map(d => d.algo))];
+      uniqueAlgos.sort((a, b) => compareByClass(a, algoClassMap[a], b, algoClassMap[b]));
+      
+      uniqueObjs = [...new Set(parsedData.map(d => d.obj))].sort();
+
+      uniqueAlgos.forEach(a => getAlgoColour(a));
+
+      buildFilters();
+      renderDashboard();
+    }
+
+    function createCheckboxList(containerId, items, defaultChecked = true) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      items.forEach(item => {
+        const id = `${containerId}-${item.key || item}`;
+        const labelText = item.name || item;
+        const val = item.key || item;
+
+        const row = document.createElement('label');
+        row.className = 'checkbox-row';
+        row.innerHTML = `
+          <input type="checkbox" value="${val}" ${defaultChecked ? 'checked' : ''} onchange="renderDashboard()">
+          <span class="checkbox-label">${labelText}</span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function createAlgoCheckboxList() {
+      const container = document.getElementById('filter-algos');
+      container.innerHTML = '';
+      uniqueAlgos.forEach(algo => {
+        const color = getAlgoColour(algo);
+        const row = document.createElement('label');
+        row.className = 'checkbox-row';
+        row.innerHTML = `
+          <input type="checkbox" value="${algo}" checked onchange="renderDashboard()">
+          <span class="checkbox-label">
+            ${algo}
+            <span class="colour-box" style="background-color: ${color};"></span>
+          </span>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function buildFilters() {
+      createCheckboxList('filter-metrics', METRICS_CONFIG);
+      createAlgoCheckboxList();
+      createCheckboxList('filter-objs', uniqueObjs);
+    }
+
+    function getCheckedValues(containerId) {
+      const container = document.getElementById(containerId);
+      const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    function renderDashboard() {
+      const selectedMetrics = getCheckedValues('filter-metrics');
+      const selectedAlgos = getCheckedValues('filter-algos');
+      const selectedObjs = getCheckedValues('filter-objs');
+
+      const container = document.getElementById('metricsContainer');
+      container.innerHTML = '';
+
+      if (selectedMetrics.length === 0 || selectedAlgos.length === 0 || selectedObjs.length === 0) {
+        container.innerHTML = '<div class="empty-state">Please select at least one metric, algorithm, and objective to view the charts.</div>';
+        return;
+      }
+
+      const activeData = parsedData.filter(d => selectedAlgos.includes(d.algo) && selectedObjs.includes(d.obj));
+
+      if (activeData.length === 0) {
+        container.innerHTML = '<div class="empty-state">No data available for the selected filters.</div>';
+        return;
+      }
+
+      // Render Individual Metric Sections
+      selectedMetrics.forEach(metricKey => {
+        const metricConf = METRICS_CONFIG.find(m => m.key === metricKey);
+        
+        const section = document.createElement('div');
+        section.className = 'metric-section';
+        
+        const title = document.createElement('h3');
+        title.className = 'metric-title';
+        title.textContent = metricConf.name;
+        section.appendChild(title);
+
+        const grid = document.createElement('div');
+        grid.className = 'charts-grid';
+        section.appendChild(grid);
+
+        container.appendChild(section);
+
+        selectedObjs.forEach((obj, objIdx) => {
+          const objData = activeData.filter(d => d.obj === obj);
+          if (objData.length === 0) return;
+
+          objData.sort((a, b) => compareByClass(a.algo, a.classVal, b.algo, b.classVal));
+
+          const cardId = `chart-${metricKey}-${objIdx}`;
+          const labels = objData.map(d => d.algo);
+          const values = objData.map(d => d[metricKey]);
+          const colours = labels.map(l => getAlgoColour(l));
+
+          window.chartDataStore[cardId] = {
+            labels: labels,
+            values: values,
+            labelName: metricConf.name,
+            colours: colours
+          };
+
+          const card = document.createElement('div');
+          card.className = 'chart-card';
+          
+          card.innerHTML = `
+            <div class="obj-title" title="${obj}">${obj}</div>
+            <div class="controls" id="ctrl-${cardId}">
+              <button class="active" onclick="switchChartType('${cardId}', 'bar', this)">Bar Chart</button>
+              <button onclick="switchChartType('${cardId}', 'line', this)">Line Chart</button>
+            </div>
+            <div class="canvas-container">
+              <canvas id="${cardId}"></canvas>
+            </div>
+          `;
+          
+          grid.appendChild(card);
+          renderChart(cardId, 'bar');
+        });
+      });
+
+      // Render Comprehensive Radar Section
+      renderRadarSection(container, selectedMetrics, selectedObjs, activeData);
+    }
+
+    function renderChart(cardId, type) {
+      if (window.chartInstances[cardId]) {
+        window.chartInstances[cardId].destroy();
+      }
+
+      const store = window.chartDataStore[cardId];
+      const canvas = document.getElementById(cardId);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const bgColours = type === 'line' ? 'transparent' : store.colours.map(c => c + 'AA');
+      const borderColours = type === 'line' ? 'rgba(255, 255, 255, 0.2)' : store.colours;
+
+      const config = {
+        type: type,
+        data: {
+          labels: store.labels,
+          datasets: [{
+            label: store.labelName,
+            data: store.values,
+            backgroundColor: bgColours,
+            borderColor: borderColours,
+            borderWidth: 2,
+            pointBackgroundColor: store.colours,
+            pointBorderColor: '#fff',
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            fill: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(12, 18, 40, 0.95)',
+              titleColor: '#fff',
+              bodyColor: '#ccc',
+              borderColor: 'rgba(255,255,255,0.2)',
+              borderWidth: 1,
+              callbacks: {
+                labelColor: function(context) {
+                  return {
+                    borderColor: '#fff',
+                    backgroundColor: store.colours[context.dataIndex]
+                  };
+                }
+              }
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true, 
+              grid: { color: 'rgba(255,255,255,0.05)' }, 
+              ticks: { color: '#888', font: { size: 11 } } 
+            },
+            x: { 
+              grid: { display: false }, 
+              ticks: { color: '#ccc', font: { weight: 'bold' } } 
+            }
+          }
+        }
+      };
+
+      window.chartInstances[cardId] = new Chart(ctx, config);
+    }
+
+    function switchChartType(cardId, type, btnElement) {
+      const container = document.getElementById(`ctrl-${cardId}`);
+      const buttons = container.querySelectorAll('button');
+      buttons.forEach(b => b.classList.remove('active'));
+      btnElement.classList.add('active');
+      renderChart(cardId, type);
+    }
+
+    function renderRadarSection(container, selectedMetrics, selectedObjs, activeData) {
+      // Create Radar Section
+      const section = document.createElement('div');
+      section.className = 'metric-section';
+      
+      const title = document.createElement('h3');
+      title.className = 'metric-title';
+      title.style.borderLeftColor = '#fff';
+      title.textContent = 'Comprehensive Radar Overview';
+      section.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'charts-grid';
+      section.appendChild(grid);
+      container.appendChild(section);
+
+      // Find global max per metric to normalise data
+      const maxVals = {};
+      selectedMetrics.forEach(mk => {
+        maxVals[mk] = Math.max(...activeData.map(d => d[mk]));
+      });
+
+      const axisLabels = selectedMetrics.map(mk => {
+        const conf = METRICS_CONFIG.find(m => m.key === mk);
+        return conf ? conf.name.split(' ')[0] : mk.toUpperCase();
+      });
+
+      selectedObjs.forEach((obj, objIdx) => {
+        const objData = activeData.filter(d => d.obj === obj);
+        if (objData.length === 0) return;
+
+        objData.sort((a, b) => compareByClass(a.algo, a.classVal, b.algo, b.classVal));
+
+        const cardId = `radar-${objIdx}`;
+        
+        const datasets = objData.map(d => {
+          const color = getAlgoColour(d.algo);
+          
+          const normData = selectedMetrics.map(mk => {
+             const max = maxVals[mk] || 1;
+             return max === 0 ? 0 : d[mk] / max;
+          });
+
+          const rawData = selectedMetrics.map(mk => d[mk]);
+
+          return {
+            label: d.algo,
+            data: normData,
+            rawData: rawData,
+            backgroundColor: color + '33', 
+            borderColor: color,
+            borderWidth: 2,
+            pointBackgroundColor: color,
+            pointBorderColor: '#fff',
+            pointRadius: 4,
+            pointHoverRadius: 6
+          };
+        });
+
+        const card = document.createElement('div');
+        card.className = 'chart-card';
+        card.innerHTML = `
+          <div class="obj-title" title="${obj}">${obj}</div>
+          <div class="canvas-container radar-container">
+            <canvas id="${cardId}"></canvas>
+          </div>
+        `;
+        
+        grid.appendChild(card);
+
+        const ctx = document.getElementById(cardId).getContext('2d');
+        window.chartInstances[cardId] = new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: axisLabels,
+            datasets: datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { 
+                display: false 
+              },
+              tooltip: {
+                backgroundColor: 'rgba(12, 18, 40, 0.95)',
+                titleColor: '#fff',
+                bodyColor: '#ccc',
+                borderColor: 'rgba(255,255,255,0.2)',
+                borderWidth: 1,
+                callbacks: {
+                  // Override tooltip to show real values instead of normalised (0-1) scores
+                  label: function(context) {
+                    const rawVal = context.dataset.rawData[context.dataIndex];
+                    return ` ${context.dataset.label}: ${rawVal}`;
+                  }
+                }
+              }
+            },
+            scales: {
+              r: {
+                angleLines: { color: 'rgba(255,255,255,0.1)' },
+                grid: { color: 'rgba(255,255,255,0.1)' },
+                pointLabels: { color: '#ccc', font: { size: 12, weight: 'bold' } },
+                ticks: { display: false, backdropColor: 'transparent', min: 0, max: 1 }
+              }
+            }
+          }
+        });
+      });
+    }
+  </script>
+</body>
+</html>

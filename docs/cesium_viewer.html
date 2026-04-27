@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Scenario - Satellite Schedule Viewer</title>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.136/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.136/Build/Cesium/Widgets/widgets.css" rel="stylesheet" />
+  <style>
+    html, body { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0b1020; color: #f5f5f5; }
+    body { display: flex; flex-direction: row; }
+    #leftPanel, #rightPanel { box-sizing: border-box; padding: 10px 12px; background: rgba(12, 18, 40, 0.96); border-right: 1px solid rgba(255, 255, 255, 0.05); z-index: 1; }
+    #leftPanel { width: 280px; }
+    #rightPanel { width: 620px; border-right: none; border-left: 1px solid rgba(255, 255, 255, 0.05); overflow-y: auto; }
+    #cesiumContainer { flex: 1 1 auto; height: 100%; }
+    h2 { margin: 6px 0 8px 0; font-size: 16px; font-weight: 600; color: #67b2ff; }
+    .panel-section { margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+    .metric-row { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+    .metric-row span:first-child { opacity: 0.75; }
+    .metric-row span:last-child { font-weight: 600; color: #ffffff; }
+    #assignmentList table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    #assignmentList th, #assignmentList td { padding: 6px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: left; white-space: nowrap; }
+    #assignmentList th { position: sticky; top: 0; background: rgba(20, 30, 60, 1); z-index: 2; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+    #assignmentList tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+    .assignment-row { cursor: pointer; }
+    .assignment-row:hover { background: rgba(103, 178, 255, 0.16); }
+    .assignment-row.active { background: rgba(103, 178, 255, 0.26); border-left: 2px solid #67b2ff; }
+    #pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 12px; }
+    #pagination button { padding: 4px 10px; font-size: 12px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.3); background: transparent; color: #f5f5f5; cursor: pointer; }
+    #pagination button:disabled { opacity: 0.3; cursor: default; }
+    .small-text { font-size: 11px; opacity: 0.7; }
+    .toggle-row { display: flex; align-items: center; font-size: 13px; margin: 5px 0; cursor: pointer; }
+    .toggle-row input { margin-right: 8px; }
+    .btn-primary { width: 100%; margin-top: 10px; padding: 8px; font-size: 12px; border-radius: 4px; border: 1px solid rgba(103, 178, 255, 0.4); background: rgba(40, 80, 160, 0.6); color: #fff; cursor: pointer; transition: 0.2s; }
+    .btn-primary:hover { background: rgba(66, 135, 245, 0.8); }
+    #openGanttBtn { padding: 5px 12px; font-size: 12px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(40, 80, 160, 0.9); color: #f5f5f5; cursor: pointer; }
+    .schedule-dropdown { width: 100%; padding: 8px; font-size: 12px; background: rgba(20, 30, 60, 0.9); color: #fff; border: 1px solid rgba(103, 178, 255, 0.4); border-radius: 4px; outline: none; margin-bottom: 15px; cursor: pointer; }
+    .schedule-dropdown option { background: #0b1020; }
+  </style>
+</head>
+<body>
+  <div id="leftPanel">
+    <div class="panel-section">
+      <h2>Metrics Summary</h2>
+      <div id="metrics"><div class="small-text">No schedule loaded.</div></div>
+      <button id="openMetricsBtn" class="btn-primary">More Metrics Comparison</button>
+    </div>
+    <div class="panel-section">
+      <h2>Display Controls</h2>
+      <label class="toggle-row"><input type="checkbox" id="toggleSatTrack" checked />Satellite Tracks</label>
+      <label class="toggle-row"><input type="checkbox" id="toggleSatLabel" checked />Satellite Labels</label>
+      <label class="toggle-row"><input type="checkbox" id="toggleSatPoint" checked />Satellite Points</label>
+      <label class="toggle-row"><input type="checkbox" id="toggleTargetLabel" checked />Target Labels</label>
+      <label class="toggle-row"><input type="checkbox" id="toggleTargetPoint" checked />Target Points</label>
+    </div>
+    <div class="panel-section">
+      <h2>Simulation Time</h2>
+      <div id="currentTime" class="small-text">-</div>
+    </div>
+  </div>
+
+  <div id="cesiumContainer"></div>
+
+  <div id="rightPanel">
+    <div class="panel-section">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <h2>Observation Tasks</h2>
+        <button id="openGanttBtn">Gantt Chart</button>
+      </div>
+      <select id="scheduleSelect" class="schedule-dropdown">
+        <option value="">Loading schedules...</option>
+      </select>
+      <div id="assignmentList"><div class="small-text">Please select a schedule.</div></div>
+      <div id="pagination">
+        <button id="prevPage" disabled>Prev</button>
+        <span id="pageInfo"></span>
+        <button id="nextPage" disabled>Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2OWQ5ODEzNy0xNGM5LTRlMWEtOTg0MC0yZGI4YTNlZGE5ZDIiLCJpZCI6MzY1OTQ3LCJpYXQiOjE3NjQ2OTE2NDh9.MptWTgPk7UUb6qGi4UI4dtHmzgOHq3UbYEHDeZV0LuI';
+    const viewer = new Cesium.Viewer('cesiumContainer', { baseLayerPicker: false, geocoder: false, animation: true, timeline: true, shouldAnimate: true });
+    let globalDs = null;
+
+    function updateCurrentTimeLabel() {
+      const ct = viewer.clock.currentTime;
+      const gregorian = Cesium.JulianDate.toGregorianDate(ct);
+      const pad = (n) => (n < 10 ? '0' + n : '' + n);
+      document.getElementById('currentTime').textContent = `${gregorian.year}-${pad(gregorian.month)}-${pad(gregorian.day)} ${pad(gregorian.hour)}:${pad(gregorian.minute)}:${pad(Math.floor(gregorian.second))}`;
+    }
+    viewer.clock.onTick.addEventListener(updateCurrentTimeLabel);
+
+    function getParam(name) { return new URLSearchParams(window.location.search).get(name); }
+
+    async function loadData() {
+      const czmlPromise = Cesium.CzmlDataSource.load('./orbit.czml');
+      globalDs = await czmlPromise;
+      viewer.dataSources.add(globalDs);
+      viewer.zoomTo(globalDs);
+      setupVisibility(globalDs);
+      setupMetricsLink();
+      
+      await populateScheduleDropdown();
+    }
+
+    function makeLabelFromFilename(filename, scenarioName) {
+      const prefix = `scheduler_${scenarioName}_`;
+      if (!filename.startsWith(prefix)) return filename;
+      const remainder = filename.substring(prefix.length);
+
+      // 处理 implicit 特殊命名
+      const implicitMatch = remainder.match(/^c([^_]+)_(.+)_implicit\.json$/);
+      if (implicitMatch) {
+        const objType = implicitMatch[2];
+        return `[Algo: Greedy (implicit)] Obj: ${objType}`;
+      }
+
+      // 处理普通命名
+      const regex = /^c([^_]+)_(.+)_p([0-9.]+)_c([0-9.]+)_t([0-9.]+)_b([0-9.]+)\.json$/;
+      const match = remainder.match(regex);
+      if (match) {
+        let algo = match[2];
+        const p = match[3], c = match[4], t = match[5], b = match[6];
+        return `[Algo: ${algo}] p=${p}, c=${c}, t=${t}, b=${b}`;
+      }
+      return remainder.replace('.json', '');
+    }
+
+    function constructFilename(scenario, cls, algo, obj) {
+      if (obj.includes('balance_first')) return `scheduler_${scenario}_c${cls}_balance_first_implicit.json`;
+      if (obj.includes('profit_first')) return `scheduler_${scenario}_c${cls}_profit_first_implicit.json`;
+      if (obj.includes('completion_first')) return `scheduler_${scenario}_c${cls}_completion_first_implicit.json`;
+      if (obj.includes('timeliness_first')) return `scheduler_${scenario}_c${cls}_timeliness_first_implicit.json`;
+      
+      let p='0', c='0', t='0', b='0';
+      const pMatch = obj.match(/profit=([0-9.]+)/);
+      const cMatch = obj.match(/completion=([0-9.]+)/);
+      const tMatch = obj.match(/timeliness=([0-9.]+)/);
+      const bMatch = obj.match(/balance=([0-9.]+)/);
+
+      if (pMatch) p = pMatch[1];
+      if (cMatch) c = cMatch[1];
+      if (tMatch) t = tMatch[1];
+      if (bMatch) b = bMatch[1];
+
+      // 防止日志被截断时丢失权重
+      if (obj.includes('0.25') && obj.includes('...')) {
+         p = '0.25'; c = '0.25'; t = '0.25'; b = '0.25';
+      }
+
+      return `scheduler_${scenario}_c${cls}_${algo}_p${p}_c${c}_t${t}_b${b}.json`;
+    }
+
+    async function populateScheduleDropdown() {
+      let scenarioName = getParam('scenario_name');
+      const initialScheduleUrl = getParam('schedule');
+      const runlogUrl = getParam('runlog');
+      
+      // 如果 main_draw.py 没有传入 scenario_name，从 initialScheduleUrl 反向推导
+      if (!scenarioName && initialScheduleUrl) {
+         const popName = initialScheduleUrl.split('/').pop();
+         const match = popName.match(/^scheduler_(Scenario_.*?)_c[0-9]+_/);
+         if (match) scenarioName = match[1];
+      }
+
+      const dropdown = document.getElementById('scheduleSelect');
+      dropdown.innerHTML = '<option value="">-- No Schedule Selected --</option>';
+
+      let schedules = [];
+      
+      if (scenarioName) {
+        // 多路径扫描支持本地运行与 GitHub Pages
+        const dirPaths = ['./', '../output/schedules/'];
+        for (const dirUrl of dirPaths) {
+          try {
+            const response = await fetch(dirUrl);
+            if (response.ok) {
+              const htmlText = await response.text();
+              const regex = /href="([^"]+\.json)"/gi;
+              let match;
+              while ((match = regex.exec(htmlText)) !== null) {
+                let filename = decodeURIComponent(match[1]).split('/').pop(); 
+                if (filename.startsWith(`scheduler_${scenarioName}_`)) {
+                  if (!schedules.find(s => s.filename === filename)) {
+                    schedules.push({
+                      filename: filename,
+                      label: makeLabelFromFilename(filename, scenarioName)
+                    });
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            // 忽略由于环境限制产生的目录拉取错误
+          }
+        }
+
+        // 针对 GitHub Pages: 目录扫描失败时回退到解析 runlog
+        if (schedules.length === 0 && runlogUrl) {
+          const cleanLogName = runlogUrl.split('/').pop();
+          const logPaths = [`./${cleanLogName}`, `../output/schedules/${cleanLogName}`];
+          let logText = null;
+          for (const lp of logPaths) {
+             try {
+                const r = await fetch(lp);
+                if (r.ok) { logText = await r.text(); break; }
+             } catch(e) {}
+          }
+
+          if (logText) {
+            const lines = logText.split('\n');
+            const headerLine = lines.find(l => l.includes('| Scenario') && l.includes('| Algo'));
+            if (headerLine) {
+              const cols = headerLine.split('|').map(s => s.trim());
+              const idxAlgo = cols.indexOf('Algo');
+              const idxClass = cols.indexOf('Class');
+              const idxObj = cols.indexOf('Objective');
+              
+              lines.forEach(line => {
+                if (line.includes('|') && line.includes(scenarioName + '.json')) {
+                  const parts = line.split('|').map(s => s.trim());
+                  const algo = parts[idxAlgo];
+                  const cls = idxClass !== -1 ? parts[idxClass] : '0';
+                  const obj = parts[idxObj];
+                  if (algo && obj) {
+                    const filename = constructFilename(scenarioName, cls, algo, obj);
+                    if (!schedules.find(s => s.filename === filename)) {
+                      schedules.push({
+                        filename: filename,
+                        label: makeLabelFromFilename(filename, scenarioName)
+                      });
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+
+      let initialFound = false;
+      let initCleanName = '';
+      if (initialScheduleUrl && initialScheduleUrl.trim() !== '') {
+         initCleanName = initialScheduleUrl.split('/').pop();
+         if (!initCleanName.endsWith('.json')) initCleanName += '.json';
+      }
+
+      schedules.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.filename; // 仅存入文件名，由 loadSchedule 智能匹配路径
+        opt.textContent = s.label;
+        if (initCleanName && s.filename === initCleanName) {
+          opt.selected = true;
+          initialFound = true;
+        }
+        dropdown.appendChild(opt);
+      });
+
+      if (initCleanName && !initialFound) {
+        const opt = document.createElement('option');
+        opt.value = initCleanName;
+        opt.textContent = 'Custom / Initial Data';
+        opt.selected = true;
+        dropdown.appendChild(opt);
+      }
+
+      dropdown.addEventListener('change', (e) => {
+        if (e.target.value) { loadSchedule(e.target.value); } 
+        else { clearScheduleUI(); }
+      });
+
+      if (dropdown.value) { loadSchedule(dropdown.value); } 
+      else { clearScheduleUI(); }
+    }
+
+    async function loadSchedule(filename) {
+      document.getElementById('assignmentList').innerHTML = '<div class="small-text">Loading Data...</div>';
+      
+      const cleanName = filename.split('/').pop();
+      // 多路径自动寻址，保障本地和云端同时可用
+      const pathsToTry = [`./${cleanName}`, `../output/schedules/${cleanName}`];
+      
+      let schedule = null;
+      for (const path of pathsToTry) {
+         try {
+           const r = await fetch(path);
+           if (r.ok) {
+             schedule = await r.json();
+             break;
+           }
+         } catch(e) {}
+      }
+
+      if (!schedule) {
+        clearScheduleUI();
+        document.getElementById('assignmentList').innerHTML = `<div class="small-text" style="color:#f87171;">Failed to load data. The requested file may not exist.<br><br>File: ${cleanName}</div>`;
+        return;
+      }
+
+      setupMetrics(schedule);
+      setupAssignments(schedule, globalDs);
+      setupGantt(cleanName); // 传递纯文件名即可
+    }
+
+    function clearScheduleUI() {
+      document.getElementById('metrics').innerHTML = '<div class="small-text">No schedule loaded.</div>';
+      document.getElementById('assignmentList').innerHTML = '<div class="small-text">Please select a schedule from the dropdown to view tasks.</div>';
+      document.getElementById('openGanttBtn').onclick = () => alert('Please select a schedule first.');
+      document.getElementById('pageInfo').textContent = '';
+      document.getElementById('prevPage').disabled = true;
+      document.getElementById('nextPage').disabled = true;
+    }
+
+    function setupMetrics(schedule) {
+      const m = schedule.metrics || {};
+      const format = (v) => v != null ? Number(v).toFixed(3) : '-';
+      document.getElementById('metrics').innerHTML = `
+        <div class="metric-row"><span>Profit (TP)</span><span>${m.TP || '-'}</span></div>
+        <div class="metric-row"><span>Completion (TCR)</span><span>${format(m.TCR)}</span></div>
+        <div class="metric-row"><span>Balance (BD)</span><span>${format(m.BD)}</span></div>
+        <div class="metric-row"><span>Timeliness (TM)</span><span>${format(m.TM)}</span></div>
+        <div class="metric-row"><span>Runtime (RT)</span><span>${format(m.RT)}s</span></div>
+      `;
+    }
+
+    function setupAssignments(schedule, ds) {
+      const listDiv = document.getElementById('assignmentList');
+      if (!schedule || !Array.isArray(schedule.assignments) || schedule.assignments.length === 0) {
+        listDiv.innerHTML = '<div class="small-text">No tasks found for this schedule.</div>';
+        document.getElementById('pageInfo').textContent = '';
+        document.getElementById('prevPage').disabled = true;
+        document.getElementById('nextPage').disabled = true;
+        return;
+      }
+      const assignments = schedule.assignments.sort((a,b) => a.sat_start_time.localeCompare(b.sat_start_time));
+      let page = 1; const size = 12;
+
+      function render() {
+        const total = Math.ceil(assignments.length / size);
+        let html = '<table><thead><tr><th>Sat</th><th>Task</th><th>Start</th><th>End</th><th>Dur(s)</th><th>Pri</th></tr></thead><tbody>';
+        assignments.slice((page-1)*size, page*size).forEach(a => {
+          const startStr = a.sat_start_time.split('T')[1].split('.')[0];
+          const endStr = a.sat_end_time.split('T')[1].split('.')[0];
+          const startJ = Cesium.JulianDate.fromIso8601(a.sat_start_time);
+          const endJ = Cesium.JulianDate.fromIso8601(a.sat_end_time);
+          const dur = Cesium.JulianDate.secondsDifference(endJ, startJ).toFixed(1);
+          const pri = a.priority !== undefined ? a.priority : '-';
+
+          html += `<tr class="assignment-row" onclick="viewer.clock.currentTime=Cesium.JulianDate.fromIso8601('${a.sat_start_time}')">
+            <td>${a.satellite_id}</td>
+            <td>${a.task_id}</td>
+            <td class="small-text">${startStr}</td>
+            <td class="small-text">${endStr}</td>
+            <td>${dur}</td>
+            <td>${pri}</td>
+          </tr>`;
+        });
+        listDiv.innerHTML = html + '</tbody></table>';
+        document.getElementById('pageInfo').textContent = `${page}/${total}`;
+        document.getElementById('prevPage').disabled = page <= 1;
+        document.getElementById('nextPage').disabled = page >= total;
+      }
+      
+      document.getElementById('prevPage').onclick = () => { page--; render(); };
+      document.getElementById('nextPage').onclick = () => { page++; render(); };
+      render();
+    }
+
+    function setupGantt(filename) {
+      document.getElementById('openGanttBtn').onclick = () => window.open(`gantt_viewer.html?schedule=${encodeURIComponent(filename)}`, '_blank');
+    }
+
+    function setupMetricsLink() {
+      const scenario = getParam('scenario_name');
+      const log = getParam('runlog');
+      const btn = document.getElementById('openMetricsBtn');
+      
+      // 只要有 scenario 和 log 就可以对比指标
+      if (scenario && log) {
+        btn.onclick = () => window.open(`metrics_viewer.html?scenario_name=${encodeURIComponent(scenario)}&runlog=${encodeURIComponent(log)}`, '_blank');
+      } else { 
+        btn.disabled = true; 
+      }
+    }
+
+    function setupVisibility(ds) {
+      const sats = ds.entities.values.filter(e => e.path);
+      const tgts = ds.entities.values.filter(e => e.point && !e.path);
+      const bind = (id, list, prop) => document.getElementById(id).onchange = (ev) => list.forEach(e => { if(e[prop]) e[prop].show = ev.target.checked; });
+      bind('toggleSatTrack', sats, 'path'); bind('toggleSatLabel', sats, 'label'); bind('toggleSatPoint', sats, 'point');
+      bind('toggleTargetLabel', tgts, 'label'); bind('toggleTargetPoint', tgts, 'point');
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
