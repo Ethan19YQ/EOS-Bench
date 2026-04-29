@@ -616,6 +616,8 @@ If you find **EOS-Bench** or the accompanying dataset helpful for your research,
       primaryClass={cs.NI},
       url={https://arxiv.org/abs/2604.25782}
 }
+```
+
 ---
 
 ## 🌍 Related Resources
