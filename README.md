@@ -601,10 +601,21 @@ EOS-Bench is designed for:
 
 ---
 
-## 📚 Citation / Acknowledgement
+## 📚 Citation
 
-If EOS-Bench helps your research, please consider citing the project repository and dataset in your experimental setup or benchmark section.
+If you find **EOS-Bench** or the accompanying dataset helpful for your research, please consider citing our paper:
 
+### BibTeX
+```bibtex
+@article{yin2026eosbench,
+      title={EOS-Bench: A Comprehensive Benchmark for Earth Observation Satellite Scheduling}, 
+      author={Qian Yin and Jiaxing Li and Jiaqi Cheng and Qizhang Luo and Annalisa Riccardi and Abhijit Chatterjee and Rafael Vazquez and Carlo Novara and Michalis Mavrovouniotis and Ponnuthurai Nagaratnam Suganthan and Shengzhou Bai and Xiaoxuan Hu and Lining Xing and Ming Xu and Shuang Li and Zixuan Zheng and Xin Shen and Xiaoyu Chen and Yi Gu and Yanjie Song and Witold Pedrycz and Evan L. Kramer and Laio Oriel Seman and Cletah Shoko and Guohua Wu and Xinwei Wang},
+      year={2026},
+      eprint={2604.25782},
+      archivePrefix={arXiv},
+      primaryClass={cs.NI},
+      url={https://arxiv.org/abs/2604.25782}
+}
 ---
 
 ## 🌍 Related Resources
