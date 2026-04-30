@@ -51,6 +51,7 @@
       <label class="toggle-row"><input type="checkbox" id="toggleSatPoint" checked />Satellite Points</label>
       <label class="toggle-row"><input type="checkbox" id="toggleTargetLabel" checked />Target Labels</label>
       <label class="toggle-row"><input type="checkbox" id="toggleTargetPoint" checked />Target Points</label>
+      <label class="toggle-row"><input type="checkbox" id="toggleObservationRays" checked />Observation Rays</label>
     </div>
     <div class="panel-section">
       <h2>Simulation Time</h2>
@@ -82,6 +83,10 @@
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2OWQ5ODEzNy0xNGM5LTRlMWEtOTg0MC0yZGI4YTNlZGE5ZDIiLCJpZCI6MzY1OTQ3LCJpYXQiOjE3NjQ2OTE2NDh9.MptWTgPk7UUb6qGi4UI4dtHmzgOHq3UbYEHDeZV0LuI';
     const viewer = new Cesium.Viewer('cesiumContainer', { baseLayerPicker: false, geocoder: false, animation: true, timeline: true, shouldAnimate: true });
     let globalDs = null;
+    
+    // 创建一个专门的数据源来存储观测光线
+    const raysDs = new Cesium.CustomDataSource('observationRays');
+    viewer.dataSources.add(raysDs);
 
     function updateCurrentTimeLabel() {
       const ct = viewer.clock.currentTime;
@@ -326,6 +331,10 @@
 
     function setupAssignments(schedule, ds) {
       const listDiv = document.getElementById('assignmentList');
+      
+      // 切换排班表时，清空之前生成的光线
+      raysDs.entities.removeAll();
+
       if (!schedule || !Array.isArray(schedule.assignments) || schedule.assignments.length === 0) {
         listDiv.innerHTML = '<div class="small-text">No tasks found for this schedule.</div>';
         document.getElementById('pageInfo').textContent = '';
@@ -334,6 +343,35 @@
         return;
       }
       const assignments = schedule.assignments.sort((a,b) => a.sat_start_time.localeCompare(b.sat_start_time));
+      
+      // 遍历任务，生成观测光线
+      assignments.forEach(a => {
+        const satEntity = ds.entities.getById(a.satellite_id);
+        const targetEntity = ds.entities.getById(a.task_id);
+
+        if (satEntity && targetEntity) {
+          const startJ = Cesium.JulianDate.fromIso8601(a.sat_start_time);
+          const endJ = Cesium.JulianDate.fromIso8601(a.sat_end_time);
+
+          raysDs.entities.add({
+            availability: new Cesium.TimeIntervalCollection([
+              new Cesium.TimeInterval({ start: startJ, stop: endJ })
+            ]),
+            polyline: {
+              positions: new Cesium.PositionPropertyArray([
+                satEntity.position,
+                targetEntity.position
+              ]),
+              width: 2,
+              material: new Cesium.PolylineGlowMaterialProperty({
+                glowPower: 0.25,
+                color: Cesium.Color.CYAN.withAlpha(0.8)
+              })
+            }
+          });
+        }
+      });
+
       let page = 1; const size = 12;
 
       function render() {
@@ -376,7 +414,6 @@
       const log = getParam('runlog');
       const btn = document.getElementById('openMetricsBtn');
       
-      // 只要有 scenario 和 log 就可以对比指标
       if (scenario && log) {
         btn.onclick = () => window.open(`metrics_viewer.html?scenario_name=${encodeURIComponent(scenario)}&runlog=${encodeURIComponent(log)}`, '_blank');
       } else { 
@@ -390,6 +427,11 @@
       const bind = (id, list, prop) => document.getElementById(id).onchange = (ev) => list.forEach(e => { if(e[prop]) e[prop].show = ev.target.checked; });
       bind('toggleSatTrack', sats, 'path'); bind('toggleSatLabel', sats, 'label'); bind('toggleSatPoint', sats, 'point');
       bind('toggleTargetLabel', tgts, 'label'); bind('toggleTargetPoint', tgts, 'point');
+      
+      // 绑定观测光线数据源的显隐
+      document.getElementById('toggleObservationRays').onchange = (ev) => {
+        raysDs.show = ev.target.checked;
+      };
     }
 
     loadData();
