@@ -64,6 +64,12 @@ The dataset repository includes:
 - city / target definition files
 - comprehensive benchmark scenario assets (both standard and specific instances)
 
+The released scenario archives are provided as **7-day master datasets**. Shorter
+planning horizons used in the experiments, such as **12h**, **24h**, and **72h**,
+can be extracted from these master scenarios using `input/scenario_splitter.py`.
+The splitter crops the planning horizon and samples the required tasks while
+preserving the scenario structure and metadata needed by the benchmark pipeline.
+
 This separation makes EOS-Bench easier to reproduce, extend, and share across different experimental settings.
 
 ---
@@ -230,6 +236,7 @@ EOS-Bench/
 │   └── gantt_viewer.html
 │
 ├── input/                       # Constellation definitions and target files
+│   ├── scenario_splitter.py      # Split 7-day master scenarios into shorter horizons
 │   └── cities_data/
 │
 ├── output/                      # Generated scenarios, schedules, models, and logs
