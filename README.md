@@ -624,6 +624,13 @@ If you find **EOS-Bench** or the accompanying dataset helpful for your research,
       url={https://arxiv.org/abs/2604.25782}
 }
 ```
+---
+
+## 📖 Papers Citing EOS-Bench
+
+The following papers have cited **EOS-Bench** in their research:
+
+* Qian Yin, Huilin Wang, Xinwei Wang, and Guohua Wu. **“Routine Scheduling of a Multi-Beam Data Relay Satellite with Mixed Request Modes and Coupled Beams.”** *Advances in Space Research*, 2026. Elsevier.
 
 ---
 
