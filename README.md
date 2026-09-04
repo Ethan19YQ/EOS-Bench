@@ -202,7 +202,7 @@ Results for satellites with fixed observation windows. Worksheets are identified
 EOS-Bench/
 │
 ├── algorithms/                  # Scheduling algorithms and factory
-│   ├── [ADDING_NEW_ALGORITHMS.md](algorithms/ADDING_NEW_ALGORITHMS.md)
+│   ├──ADDING_NEW_ALGORITHMS.md 
 │   ├── mip.py                   # MIP-based scheduler
 │   ├── heuristics.py            # Heuristic schedulers
 │   ├── meta_sa.py               # Simulated annealing
