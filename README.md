@@ -202,6 +202,7 @@ Results for satellites with fixed observation windows. Worksheets are identified
 EOS-Bench/
 │
 ├── algorithms/                  # Scheduling algorithms and factory
+│   ├── [ADDING_NEW_ALGORITHMS.md](algorithms/ADDING_NEW_ALGORITHMS.md)
 │   ├── mip.py                   # MIP-based scheduler
 │   ├── heuristics.py            # Heuristic schedulers
 │   ├── meta_sa.py               # Simulated annealing
@@ -488,6 +489,8 @@ This makes the platform suitable for both **classical OR benchmarking** and **mo
 
 The platform is designed to be highly extensible. All algorithms in EOS-Bench share a unified interface, meaning you can plug in a new method without modifying the underlying constraint evaluation or logging pipelines. 
 
+> 📘 For a detailed step-by-step guide to integrating a new scheduling algorithm into EOS-Bench, please refer to **[ADDING_NEW_ALGORITHMS.md](algorithms/ADDING_NEW_ALGORITHMS.md)**.
+
 To add a new algorithm, follow these steps. Let's use an **Adaptive Large Neighbourhood Search (ALNS)** algorithm as an example:
 
 **1. Implement the scheduler**
@@ -630,6 +633,8 @@ If you find **EOS-Bench** or the accompanying dataset helpful for your research,
 
 The following papers have cited **EOS-Bench** in their research:
 
+* Tubolayefa Warekuromor. **“Reproducible Baselines and Execution Verification for Earth Observation Satellite Constellation Scheduling s.”** *International Journal of Modern Science and Research Technology (IJMSRT)*, Vol. 4, No. 8, August 2026, pp. 877–888.
+  
 * Qian Yin, Huilin Wang, Xinwei Wang, and Guohua Wu. **“Routine Scheduling of a Multi-Beam Data Relay Satellite with Mixed Request Modes and Coupled Beams.”** *Advances in Space Research*, 2026. Elsevier.
 
 ---
