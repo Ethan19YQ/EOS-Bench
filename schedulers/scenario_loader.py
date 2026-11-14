@@ -119,6 +119,7 @@ class SchedulingProblem:
     ground_stations: Dict[str, SchedulingGroundStation]
     tasks: Dict[str, SchedulingTask]
     comm_windows: List[CommWindow]
+    weather_metadata: dict = field(default_factory=dict)
 
 
 # ==============================
@@ -199,7 +200,7 @@ def _infer_maneuverability_type(sat: dict) -> str:
     return "agile"
 
 
-def load_scheduling_problem_from_json(json_path: str | Path) -> SchedulingProblem:
+def load_scheduling_problem_from_json(json_path: str | Path, weather_config=None) -> SchedulingProblem:
 
     import json
 
@@ -339,7 +340,7 @@ def load_scheduling_problem_from_json(json_path: str | Path) -> SchedulingProble
                 )
             )
 
-    return SchedulingProblem(
+    problem = SchedulingProblem(
         scenario_id=scenario_id,
         start_time=start_time,
         end_time=end_time,
@@ -348,3 +349,5 @@ def load_scheduling_problem_from_json(json_path: str | Path) -> SchedulingProble
         tasks=tasks,
         comm_windows=comm_windows,
     )
+    from schedulers.weather_mask import apply_weather_mask
+    return apply_weather_mask(problem, weather_config)

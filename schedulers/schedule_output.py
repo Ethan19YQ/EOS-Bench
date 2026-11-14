@@ -64,6 +64,7 @@ def save_schedule_to_json(
                 {
                     "task_id": a.task_id,
                     "satellite_id": a.satellite_id,
+                    "sat_window_id": a.sat_window_id,
                     "ground_station_id": a.ground_station_id,
                     "sat_start_time": a.sat_start_time.isoformat(),
                     "sat_end_time": a.sat_end_time.isoformat(),
@@ -83,6 +84,7 @@ def save_schedule_to_json(
                 {
                     "task_id": a.task_id,
                     "satellite_id": a.satellite_id,
+                    "sat_window_id": a.sat_window_id,
                     "sat_start_time": a.sat_start_time.isoformat(),
                     "sat_end_time": a.sat_end_time.isoformat(),
                     "sensor_id": getattr(a, "sensor_id", ""),
@@ -93,6 +95,16 @@ def save_schedule_to_json(
                     "priority": task.priority,
                 }
             )
+
+    if schedule.metadata:
+        result["solver_metadata"] = schedule.metadata
+
+    if problem.weather_metadata:
+        from .weather_mask import evaluate_cloud_outcomes
+        result["weather_mask"] = {
+            **problem.weather_metadata,
+            "outcomes": evaluate_cloud_outcomes(problem, schedule),
+        }
 
     # Metrics section
     if metrics is not None:

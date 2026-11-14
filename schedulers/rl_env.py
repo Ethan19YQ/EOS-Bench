@@ -99,6 +99,7 @@ class RLSchedulingEnv:
         # Objective model used for reward = delta(score)
         self.obj_model = ObjectiveModel(problem, self.objective_weights)
         self._last_score = float(self.obj_model.score(self.schedule))
+        self._cloud_reward_settled = False
 
         return {
             "state": self._get_state(),
@@ -125,6 +126,7 @@ class RLSchedulingEnv:
             # Invalid action: negative reward and advance to the next task to avoid getting stuck
             reward = -self.unassigned_penalty
             done = self._advance()
+            reward = self._settle_cloud_reward(reward, done)
             return {"state": self._get_state(), "action_mask": self._get_action_mask()}, reward, done, {"status": "invalid_action"}
 
         cand = self._candidates[action]
@@ -135,6 +137,7 @@ class RLSchedulingEnv:
             # Skip: apply an explicit penalty and advance
             reward = -self.unassigned_penalty
             done = self._advance()
+            reward = self._settle_cloud_reward(reward, done)
             return {"state": self._get_state(), "action_mask": self._get_action_mask()}, reward, done, {"status": "skip"}
 
         # Feasibility check performed again
@@ -153,6 +156,7 @@ class RLSchedulingEnv:
         self._last_score = new_score
 
         done = self._advance()
+        reward = self._settle_cloud_reward(reward, done)
         return {"state": self._get_state(), "action_mask": self._get_action_mask()}, reward, done, {"status": "ok"}
 
     def get_schedule(self) -> Schedule:
@@ -161,6 +165,25 @@ class RLSchedulingEnv:
     # -------------------------
     # internal helpers
     # -------------------------
+
+    def _settle_cloud_reward(self, reward: float, done: bool) -> float:
+        """Account for failed acquisitions once the complete plan is available."""
+        if not done or self._cloud_reward_settled or not self.problem.weather_metadata:
+            return reward
+        from .weather_mask import evaluate_cloud_outcomes
+        outcomes = evaluate_cloud_outcomes(self.problem, self.schedule)
+        successful = set(outcomes["successful_task_ids"])
+        realised = Schedule(assignments=[a for a in self.schedule.assignments
+                                        if a.task_id in successful])
+        weights = self.obj_model.weights
+        loss = (
+            weights.w_profit * (self.obj_model.profit_score(self.schedule)
+                                - self.obj_model.profit_score(realised))
+            + weights.w_completion * (self.obj_model.completion_score(self.schedule)
+                                      - self.obj_model.completion_score(realised))
+        )
+        self._cloud_reward_settled = True
+        return reward - self.reward_scale * loss
 
     def _advance(self) -> bool:
         self.task_index += 1

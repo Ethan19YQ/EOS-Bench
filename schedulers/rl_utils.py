@@ -35,7 +35,7 @@ def normalize_json_path(input_name: str, default_dir: Path) -> Path:
 def scan_scenario_jsons(output_dir: Path) -> List[Path]:
     """
     Scan all scenario JSON files under output_dir for training,
-    excluding the schedules subdirectory.
+    excluding schedules, models and temporary training subdirectories.
 
     Recommended scenario JSON naming is generally:
       Scenario_*.json
@@ -46,6 +46,7 @@ def scan_scenario_jsons(output_dir: Path) -> List[Path]:
     """
     output_dir = output_dir.resolve()
     schedules_dir = (output_dir / "schedules").resolve()
+    generated_dirs = (schedules_dir, output_dir / "models", output_dir / "tmp_rl")
 
     results: List[Path] = []
     for p in output_dir.rglob("*.json"):
@@ -55,12 +56,12 @@ def scan_scenario_jsons(output_dir: Path) -> List[Path]:
             continue
 
         # Exclude the schedules directory
-        if schedules_dir in rp.parents:
+        if any(directory in rp.parents for directory in generated_dirs):
             continue
 
         # Exclude output scheduling result files to avoid mixing them into training
         name = rp.name.lower()
-        if "schedule" in name or name.startswith("scheduler_"):
+        if "schedule" in name or name.startswith("scheduler_") or name.endswith(".meta.json"):
             continue
 
         results.append(rp)

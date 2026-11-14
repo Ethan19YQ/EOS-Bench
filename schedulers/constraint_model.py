@@ -144,6 +144,8 @@ class ConstraintModel:
         self.downlink_duration_ratio = downlink_duration_ratio
 
         self.has_ground_stations = len(problem.ground_stations) > 0
+        self.agility_profile = agility_profile
+        self.non_agile_transition_s = float(non_agile_transition_s)
 
     # ---------- Constraint checking ----------
 

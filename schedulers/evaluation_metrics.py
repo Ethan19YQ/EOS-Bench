@@ -102,10 +102,17 @@ def compute_evaluation_metrics(
     """
     Compute all six metrics together.
 
+    Cloud masks affect realised TP and TCR after planning.
+    BD, TM and runtime continue to describe the complete plan.
     RV is calculated only when multiple TP samples are provided.
     """
     tp = _compute_task_profit(problem, schedule)
     tcr = _compute_task_completion_rate(problem, schedule)
+    if problem.weather_metadata:
+        from .weather_mask import evaluate_cloud_outcomes
+        outcomes = evaluate_cloud_outcomes(problem, schedule)
+        tp = outcomes["realised_TP"]
+        tcr = outcomes["realised_TCR"]
     bd = _compute_balance_degree(problem, schedule)
     tm = _compute_timeliness_metric(problem, schedule)
     rv = _compute_robustness_variance(robustness_tp_samples) if robustness_tp_samples else None
