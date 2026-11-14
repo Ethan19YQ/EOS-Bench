@@ -11,7 +11,7 @@ The integration process consists of four main steps:
 3. Add the algorithm to the benchmark configuration.
 4. Run the algorithm through the standard EOS-Bench workflow.
 
-This document uses an **Adaptive Large Neighbourhood Search (ALNS)** scheduler as an example.
+This document uses the implemented **Adaptive Large Neighbourhood Search (ALNS)** scheduler as an example. Its registration is already present; the steps below also explain how to add another solver.
 
 ---
 
@@ -52,46 +52,24 @@ Create a new Python file under the `algorithms/` directory. For example:
 algorithms/alns.py
 ```
 
-The scheduler class should inherit from `BaseSchedulerAlgorithm` and implement `search()`.
+ALNS is already implemented in `algorithms/alns.py`, rather than being an empty interface example. It provides random, marginal-loss and related removal, greedy, regret-2 and randomised-greedy repair, adaptive operator selection and simulated-annealing acceptance. The best feasible solution is retained.
+
+Use the actual implementation as follows:
 
 ```python
-# algorithms/alns.py
+from algorithms.alns import ALNSConfig, ALNSScheduler
+from schedulers.constraint_model import ConstraintModel
+from schedulers.engine import SchedulingEngine
+from schedulers.scenario_loader import load_scheduling_problem_from_json
 
-from schedulers.engine import BaseSchedulerAlgorithm
-from schedulers.constraint_model import ConstraintModel, Schedule
-from schedulers.scenario_loader import SchedulingProblem
-
-
-class ALNSScheduler(BaseSchedulerAlgorithm):
-    def __init__(self, cfg=None):
-        # Store algorithm-specific configuration here
-        self.cfg = cfg
-
-    def search(
-        self,
-        problem: SchedulingProblem,
-        constraint_model: ConstraintModel,
-        initial_schedule: Schedule
-    ) -> Schedule:
-        # 1. Initialise the working schedule
-        current_schedule = initial_schedule
-
-        # 2. Implement the optimisation procedure here
-        #
-        # Example workflow:
-        #   - generate candidate assignments
-        #   - evaluate candidate solutions
-        #   - check feasibility through ConstraintModel
-        #   - accept/reject or update solutions according to
-        #     the logic of your algorithm
-        #
-        # Example feasibility check:
-        # if constraint_model.is_feasible_assignment(candidate, current_schedule):
-        #     current_schedule.assignments.append(candidate)
-
-        # 3. Return the final schedule
-        return current_schedule
+problem = load_scheduling_problem_from_json(
+    "docs/Scenario_S1_Sats20_M500_T0.5d_dist0.json")
+constraint_model = ConstraintModel(problem)
+scheduler = ALNSScheduler(ALNSConfig(seed=42, max_iterations=200))
+schedule = SchedulingEngine(problem, constraint_model, scheduler).run()
 ```
+
+For a different solver, implement `search(problem, constraint_model, initial_schedule)` and return a `Schedule`. The [ALNS and weather experiment guide](../docs/ALNS_WEATHER_EXPERIMENTS.md) documents the implemented neighbourhood limits, defaults and validation boundary.
 
 ### Important integration principle
 
@@ -150,10 +128,10 @@ After implementing the scheduler, register it in:
 algorithms/factory.py
 ```
 
-First, import the scheduler class:
+First, import the scheduler and its configuration:
 
 ```python
-from algorithms.alns import ALNSScheduler
+from algorithms.alns import ALNSConfig, ALNSScheduler
 ```
 
 Then add a corresponding branch to `create_algorithm()`:
@@ -161,7 +139,8 @@ Then add a corresponding branch to `create_algorithm()`:
 ```python
 # algorithms/factory.py
 
-from algorithms.alns import ALNSScheduler
+from algorithms.alns import ALNSConfig, ALNSScheduler
+from algorithms.objectives import ObjectiveWeights
 
 
 def create_algorithm(algo_name: str, objective_weights=None, cfg_overrides=None):
@@ -170,7 +149,11 @@ def create_algorithm(algo_name: str, objective_weights=None, cfg_overrides=None)
     # ... existing algorithms ...
 
     if name in ("alns", "adaptive_large_ns"):
-        return ALNSScheduler(cfg=cfg_overrides)
+        cfg = ALNSConfig(weights=objective_weights or ObjectiveWeights())
+        for key, value in (cfg_overrides or {}).items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        return ALNSScheduler(cfg=cfg)
 ```
 
 The registered name, such as `alns`, becomes the identifier used when selecting the algorithm from the benchmark configuration or command line.
@@ -221,7 +204,7 @@ Once the implementation and registration are complete, the new algorithm can be 
 For the ALNS example:
 
 ```bash
-python main_scheduler.py --algos alns --workers_other 4
+python main_scheduler.py --scenario_dir docs --algos alns --weights 1 0 0 0 --workers_other 1
 ```
 
 After registration, the custom scheduler uses the same EOS-Bench workflow as the built-in algorithms, including the common scheduling problem representation, constraint model, evaluation pipeline, logging, and downstream visualisation workflow.

@@ -32,6 +32,7 @@ from algorithms.heuristics import (
 from algorithms.meta_sa import SimulatedAnnealingScheduler, SAConfig
 from algorithms.meta_ga import GeneticAlgorithmScheduler, GAConfig
 from algorithms.meta_aco import AntColonyScheduler, ACOConfig
+from algorithms.alns import ALNSScheduler, ALNSConfig
 
 # PPO (Reinforcement Learning)
 
@@ -103,6 +104,10 @@ def create_algorithm(
         cfg = _apply_overrides(cfg, o)
         return AntColonyScheduler(cfg=cfg)
 
+    if name in ("alns", "adaptive_large_ns"):
+        cfg = _apply_overrides(ALNSConfig(weights=ow), o)
+        return ALNSScheduler(cfg=cfg)
+
     # ---------------- PPO ----------------
     if name in ("ppo",):
         try:
@@ -119,7 +124,7 @@ def create_algorithm(
 
     raise ValueError(
         f"Unknown algorithm: {algo_name}. "
-        f"Supported: mip, completion_first, profit_first, balance_first, sa, ga, aco, ppo"
+        f"Supported: mip, completion_first, profit_first, balance_first, timeliness_first, sa, ga, aco, alns, ppo"
     )
 
 
