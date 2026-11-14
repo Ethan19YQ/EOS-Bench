@@ -12,7 +12,7 @@ Description
 ----
 - class_id=1: MIP (Mixed Integer Programming)
 - class_id=2: Heuristic (completion/profit/balance/timeliness)
-- class_id=3: Meta-heuristics (sa/ga/aco)
+- class_id=3: Meta-heuristics (sa/ga/aco/alns)
 - class_id=4: PPO (Reinforcement Learning, divided into Train and Test phases)
 """
 
@@ -36,6 +36,7 @@ from schedulers.evaluation_metrics import compute_evaluation_metrics, Evaluation
 
 from algorithms.objectives import ObjectiveWeights
 from algorithms.factory import create_algorithm
+from schedulers.weather_mask import resolve_weather_config
 
 BASE_DIR = Path(__file__).resolve().parent
 SCENARIO_DIR = BASE_DIR / "output"
@@ -88,7 +89,11 @@ def _sat_count_from_scenario_name(scenario_name: str) -> int | None:
 
 def _stable_seed(text: str) -> int:
     """Generate a stable 31-bit seed that remains constant for the same text."""
-    h = hashlib.md5(text.encode("utf-8"), usedforsecurity=False).hexdigest()
+    try:
+        digest = hashlib.md5(text.encode("utf-8"), usedforsecurity=False)
+    except TypeError:  # Python 3.8: identical digest without the newer keyword.
+        digest = hashlib.md5(text.encode("utf-8"))
+    h = digest.hexdigest()
     return int(h[:8], 16) & 0x7FFFFFFF
 
 
@@ -198,6 +203,7 @@ def _train_one_process(
         save_every_episodes: int,
         resume_if_exists: bool,
         cuda_visible_devices: Optional[str] = None,
+        training_weather_config: dict | None = None,
 ) -> str:
     """Single RL training run in one process to avoid GPU pickle issues."""
     if cuda_visible_devices is not None:
@@ -224,6 +230,7 @@ def _train_one_process(
         objective_weights=objective_weights,
         reward_scale=float(reward_scale),
         non_agile_transition_s=float(non_agile_transition_s),
+        training_weather_config=training_weather_config,
     )
 
     learner = PPOLearningScheduler(model_path=str(model_path), run_cfg=cfg)
@@ -246,10 +253,11 @@ def run_single_scheduling(
         rl_device: str = "cpu",
         rl_max_actions: int = 256,
         rl_unassigned_penalty: float = 1.0,
+        weather_config: dict | None = None,
 ) -> Tuple[EvaluationMetrics, Path, Path]:
     """Single evaluation run plus output result files including JSON, Gantt chart, and metrics."""
 
-    problem = load_scheduling_problem_from_json(problem_json)
+    problem = load_scheduling_problem_from_json(problem_json, weather_config=weather_config)
 
     cm = ConstraintModel(
         problem=problem,
@@ -331,6 +339,8 @@ def run_single_scheduling(
         obj_tag = "implicit"
         output_basename = f"scheduler_{problem_json.stem}_c{class_id}_{algo_name_norm}_{obj_tag}"
 
+    if problem.weather_metadata:
+        output_basename += "_wm" + problem.weather_metadata["mask_sha256"][:12]
     schedule_json_path = schedule_dir / f"{output_basename}.json"
     gantt_png_path = schedule_dir / f"{output_basename}.png"
 
@@ -387,6 +397,7 @@ def _worker_run_single(job: dict[str, Any]) -> dict[str, Any]:
         )
         metrics, schedule_json_path, _ = run_single_scheduling(
             problem_json=scenario_json,
+            weather_config=job.get("weather_config"),
             class_id=class_id,
             algo_name=algo_name,
             placement_mode=placement_mode,
@@ -456,9 +467,21 @@ def run_benchmark(
     max_workers_rl: int = 1,
     max_workers_other: int = 10,
     selected_algos: list[str] | None = None,
-    custom_objective_loop: list[ObjectiveWeights] | None = None
+    custom_objective_loop: list[ObjectiveWeights] | None = None,
+    alns_cfg_overrides: dict | None = None,
+    seed_offset: int = 0,
+    scenario_dir: Path | None = None,
+    schedule_dir: Path | None = None,
+    weather_config: dict | None = None,
+    rl_training_weather_config: dict | None = None,
 ):
     """Core pipeline execution function."""
+    scenario_root = (Path(scenario_dir) if scenario_dir is not None else SCENARIO_DIR).resolve()
+    schedule_root = (Path(schedule_dir) if schedule_dir is not None else SCHEDULE_DIR).resolve()
+    weather_cfg = resolve_weather_config(weather_config)
+    training_weather_cfg = resolve_weather_config(rl_training_weather_config)
+    if weather_cfg.enabled:
+        schedule_root = schedule_root / weather_cfg.output_tag
     
     # ---------------------------------------------
     # Hardcoded internal RL setups that are rarely modified
@@ -493,6 +516,7 @@ def run_benchmark(
         {"class_id": 3, "algo_name": "sa", "cfg_overrides": {}},
         {"class_id": 3, "algo_name": "ga", "cfg_overrides": {}},
         {"class_id": 3, "algo_name": "aco", "cfg_overrides": {}},
+        {"class_id": 3, "algo_name": "alns", "cfg_overrides": dict(alns_cfg_overrides or {})},
 
         {"class_id": 4, "algo_name": "ppo", "cfg_overrides": {}},
     ]
@@ -520,7 +544,7 @@ def run_benchmark(
         ]
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    SCHEDULE_DIR.mkdir(parents=True, exist_ok=True)
+    schedule_root.mkdir(parents=True, exist_ok=True)
 
     # =========================================================
     # Phase 1: RL (PPO) training workflow, executed when needed
@@ -540,6 +564,9 @@ def run_benchmark(
             model_path = MODELS_DIR / (
                 f"{rl_model_prefix}_p{ow_n.w_profit:g}_c{ow_n.w_completion:g}_t{ow_n.w_timeliness:g}_b{ow_n.w_balance:g}.pt"
             )
+            if training_weather_cfg.enabled:
+                model_path = model_path.with_name(
+                    model_path.stem + "_" + training_weather_cfg.output_tag + model_path.suffix)
 
             print(f"[PPO][TRAIN] obj={obj_desc} model={model_path.name}")
             # Synchronous training prevents GPU resource contention caused by multiprocessing
@@ -560,6 +587,7 @@ def run_benchmark(
                 resample_every_episodes=rl_resample_every_episodes,
                 save_every_episodes=rl_save_every_episodes,
                 resume_if_exists=rl_resume_if_exists,
+                training_weather_config=dict(vars(training_weather_cfg)),
                 cuda_visible_devices=str(int(rl_train_gpu_id)) if rl_train_device.startswith("cuda") else None,
             )
             trained_models.append(Path(mpth))
@@ -576,23 +604,29 @@ def run_benchmark(
     # =========================================================
     # Phase 2: Scenario loading and algorithm evaluation
     # =========================================================
-    scenario_paths = _list_scenario_jsons(SCENARIO_DIR)
+    scenario_paths = _list_scenario_jsons(scenario_root)
     if not scenario_paths:
-        raise FileNotFoundError(f"No Scenario_*.json files found in {SCENARIO_DIR}")
+        raise FileNotFoundError(f"No Scenario_*.json files found in {scenario_root}")
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_path = SCHEDULE_DIR / f"runlog_batch_{timestamp}.txt"
+    log_path = schedule_root / f"runlog_batch_{timestamp}_{time.time_ns() % 1000000000:09d}_seed{seed_offset}.txt"
 
     header, sep = _format_header_line()
     with log_path.open("w", encoding="utf-8") as f:
         f.write("Satellite Benchmark Batch Run Log\n")
         f.write(f"Generated at: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Scenario dir: {SCENARIO_DIR}\n")
+        f.write(f"Scenario dir: {scenario_root}\n")
         f.write(f"Placement mode: {placement_mode}\n")
+        f.write(f"Agility profile: {agility_profile}\n")
+        f.write(f"Non-agile transition (s): {non_agile_transition_s}\n")
         f.write(f"Downlink ratio: {downlink_duration_ratio}\n")
         f.write(f"Unassigned penalty: {unassigned_penalty}\n")
         f.write(f"Parallel: mip={max_workers_mip}, rl={max_workers_rl}, other={max_workers_other}\n")
         f.write(f"Algorithms: {selected_algos if selected_algos else 'ALL'}\n")
+        f.write(f"Seed offset: {seed_offset}\n")
+        f.write(f"ALNS overrides: {alns_cfg_overrides or {}}\n")
+        f.write(f"Weather mask: {vars(weather_cfg)}\n")
+        f.write(f"PPO training weather: {vars(training_weather_cfg)}\n")
         f.write("\n")
         f.write(sep + "\n")
         f.write(header + "\n")
@@ -607,10 +641,14 @@ def run_benchmark(
     for scenario_json in scenario_paths:
         scenario_name = scenario_json.stem
 
-        rel_parent = scenario_json.parent.relative_to(SCENARIO_DIR) if scenario_json.parent != SCENARIO_DIR else Path(
+        rel_parent = scenario_json.parent.relative_to(scenario_root) if scenario_json.parent != scenario_root else Path(
             ".")
-        scenario_schedule_dir = SCHEDULE_DIR / rel_parent
-        scenario_rl_dir = SCHEDULE_DIR / rel_parent
+        scenario_schedule_dir = schedule_root / rel_parent
+        scenario_rl_dir = schedule_root / rel_parent
+        # Keep independent seeded runs from overwriting previous plans.
+        if seed_offset:
+            scenario_schedule_dir = scenario_schedule_dir / f"seed_offset_{seed_offset}"
+            scenario_rl_dir = scenario_rl_dir / f"seed_offset_{seed_offset}"
 
         for spec in algo_specs:
             class_id = int(spec["class_id"])
@@ -640,7 +678,7 @@ def run_benchmark(
                             )
                         continue
 
-                base_seed = _stable_seed(f"{scenario_name}|{algo_name}")
+                base_seed = (_stable_seed(f"{scenario_name}|{algo_name}") + seed_offset) & 0x7FFFFFFF
 
                 for ow in objective_loop:
                     cfg_overrides_job = dict(cfg_overrides)
@@ -707,6 +745,9 @@ def run_benchmark(
                         }
                     )
 
+    for job in mip_jobs + rl_jobs + other_jobs:
+        job["weather_config"] = dict(vars(weather_cfg))
+
     future_to_pool: dict[Any, str] = {}
     ex_mip = ProcessPoolExecutor(max_workers=max_workers_mip) if (max_workers_mip > 0 and mip_jobs) else None
     ex_rl = ProcessPoolExecutor(max_workers=max_workers_rl) if (max_workers_rl > 0 and rl_jobs) else None
@@ -732,11 +773,11 @@ def run_benchmark(
 
     finally:
         if ex_mip is not None:
-            ex_mip.shutdown(wait=True, cancel_futures=False)
+            ex_mip.shutdown(wait=True)
         if ex_rl is not None:
-            ex_rl.shutdown(wait=True, cancel_futures=False)
+            ex_rl.shutdown(wait=True)
         if ex_other is not None:
-            ex_other.shutdown(wait=True, cancel_futures=False)
+            ex_other.shutdown(wait=True)
 
     print(f"[INFO] run log saved: {log_path}")
 
@@ -763,7 +804,26 @@ if __name__ == "__main__":
         
         # Algorithm selection parameter
         parser.add_argument("--algos", nargs="+", type=str,
-                            help="List of algorithms to run (e.g., mip sa ppo). If not set, runs all.")
+                            help="List of algorithms to run (e.g., mip sa ga aco alns ppo). If not set, runs all.")
+        parser.add_argument("--alns_iterations", type=int, default=200)
+        parser.add_argument("--alns_time_limit", type=float, default=None,
+                            help="Optional ALNS search-time limit in seconds (excludes engine initialisation).")
+        parser.add_argument("--seed_offset", type=int, default=0,
+                            help="Offset scenario-derived seeds for class 1/3; nonzero runs use separate output folders.")
+        parser.add_argument("--scenario_dir", type=Path, default=SCENARIO_DIR,
+                            help="Directory containing Scenario_*.json files (searched recursively).")
+        parser.add_argument("--schedule_dir", type=Path, default=SCHEDULE_DIR,
+                            help="Directory for plans, plots, and batch logs.")
+        parser.add_argument("--weather_mask", action="store_true",
+                            help="Evaluate cloud-blocked observations after planning with all windows.")
+        parser.add_argument("--cloud_fraction", type=float, default=0.2,
+                            help="Fraction of whole observation windows to block, in [0, 1].")
+        parser.add_argument("--weather_seed", type=int, default=0,
+                            help="Mask seed, independent of algorithm search seeds.")
+        parser.add_argument("--train_weather_mask", action="store_true",
+                            help="Apply cloud outcome losses at the end of each PPO training episode.")
+        parser.add_argument("--train_cloud_fraction", type=float, default=0.2)
+        parser.add_argument("--train_weather_seed", type=int, default=0)
         
         parser.add_argument("--placement_mode", type=str, default="earliest", choices=["earliest", "center", "latest"],
                             help="Placement mode for scheduling (default: earliest)")
@@ -814,7 +874,15 @@ if __name__ == "__main__":
             max_workers_rl=args.workers_rl,
             max_workers_other=args.workers_other,
             selected_algos=args.algos,
-            custom_objective_loop=parsed_weights  # Pass the parsed weights to the core function
+            custom_objective_loop=parsed_weights,
+            alns_cfg_overrides={"max_iterations": args.alns_iterations, "time_limit_s": args.alns_time_limit},
+            seed_offset=args.seed_offset,
+            scenario_dir=args.scenario_dir,
+            schedule_dir=args.schedule_dir,
+            weather_config={"enabled": args.weather_mask, "blocked_fraction": args.cloud_fraction,
+                            "seed": args.weather_seed},
+            rl_training_weather_config={"enabled": args.train_weather_mask,
+                "blocked_fraction": args.train_cloud_fraction, "seed": args.train_weather_seed},
         )
 
     # Otherwise, fall back to the original hardcoded script configuration mode
@@ -836,6 +904,9 @@ if __name__ == "__main__":
         
         # Specify algorithms to run in hardcoded mode; set to None to run all
         selected_algos = None  # Example: ["mip", "sa", "ga"]
+        # Optional post-scheduling cloud outcomes shared by all selected algorithms.
+        weather_config = {"enabled": False, "blocked_fraction": 0.2, "seed": 0}
+        rl_training_weather_config = {"enabled": False, "blocked_fraction": 0.2, "seed": 0}
 
         # Define custom objective weights directly for the hardcoded mode
         custom_objective_loop = None 
@@ -858,5 +929,7 @@ if __name__ == "__main__":
             max_workers_rl=max_workers_rl,
             max_workers_other=max_workers_other,
             selected_algos=selected_algos,
-            custom_objective_loop=custom_objective_loop
+            custom_objective_loop=custom_objective_loop,
+            weather_config=weather_config,
+            rl_training_weather_config=rl_training_weather_config,
         )
