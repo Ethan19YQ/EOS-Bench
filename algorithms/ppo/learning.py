@@ -12,13 +12,14 @@ Class 4: Learning-based scheduling algorithm (PPO example)
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import time
 import random
 import json
 import hashlib
+from schedulers.weather_mask import resolve_weather_config, WEATHER_MASK_SCHEMA
 
 import numpy as np
 
@@ -58,8 +59,16 @@ def _config_signature(run_cfg: 'PPORunConfig', ppo_cfg: 'PPOConfig') -> str:
             "minibatch": int(ppo_cfg.minibatch),
         },
     }
+    weather = resolve_weather_config(run_cfg.training_weather_config)
+    if weather.enabled:
+        d["training_weather_config"] = asdict(weather)
+        d["training_weather_schema"] = WEATHER_MASK_SCHEMA
     s = json.dumps(d, sort_keys=True, ensure_ascii=False)
-    h = hashlib.md5(s.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
+    try:
+        digest = hashlib.md5(s.encode("utf-8"), usedforsecurity=False)
+    except TypeError:
+        digest = hashlib.md5(s.encode("utf-8"))
+    h = digest.hexdigest()[:10]
     return h
 
 
@@ -84,6 +93,8 @@ def _save_checkpoint(path: Path, agent: 'PPOAgent', run_cfg: 'PPORunConfig', ppo
         "rng_torch": torch.random.get_rng_state(),
         "rng_torch_cuda": torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
     }
+    if resolve_weather_config(run_cfg.training_weather_config).enabled:
+        ckpt["training_weather_schema"] = WEATHER_MASK_SCHEMA
     path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(ckpt, str(path))
 
@@ -148,6 +159,8 @@ class PPORunConfig:
     # (can be randomly overridden by the sampler during training)
     agility_profile: str = "Standard-Agility"
     non_agile_transition_s: float = 10.0
+    # Prepared on reading; acquisition losses are settled at episode end.
+    training_weather_config: Optional[Dict[str, Any]] = None
 
 
 class PPOLearningScheduler:
@@ -163,6 +176,7 @@ class PPOLearningScheduler:
         run_cfg: Optional[PPORunConfig] = None,
     ) -> None:
         self.run_cfg = run_cfg or PPORunConfig()
+        resolve_weather_config(self.run_cfg.training_weather_config)
         self.model_path = model_path  # Can be None: a default path will be generated automatically during training
 
         self._agent: Optional[PPOAgent] = None
@@ -195,7 +209,7 @@ class PPOLearningScheduler:
             raise FileNotFoundError(f"No scenario JSONs available for training found in {output_dir} (schedules excluded)")
 
         # Read one scenario to get state_dim
-        sample_problem = load_scheduling_problem_from_json(scenario_paths[0])
+        sample_problem = self._load_training_problem(scenario_paths[0])
         env = RLSchedulingEnv(
             max_actions=self._max_actions,
             placement_mode=self.run_cfg.placement_mode,
@@ -228,7 +242,18 @@ class PPOLearningScheduler:
         start_episode = 0
         if getattr(self.run_cfg, "resume_if_exists", True) and model_path.exists():
             ck = _try_load_checkpoint(model_path, agent)
+            if ck is None and resolve_weather_config(self.run_cfg.training_weather_config).enabled:
+                raise ValueError("Cannot verify existing checkpoint weather settings; use a new model path")
             if ck is not None and isinstance(ck, dict):
+                saved_weather = resolve_weather_config(
+                    ck.get("run_cfg", {}).get("training_weather_config"))
+                requested_weather = resolve_weather_config(self.run_cfg.training_weather_config)
+                if ((saved_weather.enabled or requested_weather.enabled)
+                        and saved_weather != requested_weather):
+                    raise ValueError("Training weather differs from the checkpoint; use a new model path")
+                if (requested_weather.enabled
+                        and ck.get("training_weather_schema") != WEATHER_MASK_SCHEMA):
+                    raise ValueError("Training weather semantics differ from the checkpoint; use a new model path")
                 start_episode = int(ck.get("episode", 0))
                 print(f"[PPO][RESUME] loaded {model_path.name}, start_episode={start_episode}", flush=True)
         # Write or update meta for easier manual inspection
@@ -237,9 +262,11 @@ class PPOLearningScheduler:
                 "model_path": str(model_path),
                 "model_tag": model_tag,
                 "signature": sig,
-                "run_cfg": self.run_cfg.__dict__,
+                "run_cfg": asdict(self.run_cfg),
                 "ppo_cfg": ppo_cfg.__dict__,
             }
+            if resolve_weather_config(self.run_cfg.training_weather_config).enabled:
+                meta["training_weather_schema"] = WEATHER_MASK_SCHEMA
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:
             pass
@@ -252,7 +279,9 @@ class PPOLearningScheduler:
         # ===== Newly added: episode return records =====
         episode_returns = []
         episode_lengths = []
-        log_path = (base_dir / "output" / "models" / "ppo_train_returns.csv").resolve()
+        train_weather = resolve_weather_config(self.run_cfg.training_weather_config)
+        log_name = (model_path.stem + "_returns.csv") if train_weather.enabled else "ppo_train_returns.csv"
+        log_path = (base_dir / "output" / "models" / log_name).resolve()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, "w", encoding="utf-8") as f:
             f.write("episode,return,length,elapsed_sec\n")
@@ -276,12 +305,16 @@ class PPOLearningScheduler:
             if cached_problem is None or (ep % N == 0):
                 base_json = Path(rng.choice(scenario_paths))
                 sampled = build_temp_training_scenario(base_json, out_dir=tmp_dir, rng=rng)
-                p = load_scheduling_problem_from_json(sampled.tmp_json)
+                p = self._load_training_problem(sampled.tmp_json)
                 try:
                     sampled.tmp_json.unlink(missing_ok=True)
                 except Exception:
                     pass
                 cached_problem = p
+                if p.weather_metadata:
+                    wm = p.weather_metadata
+                    print(f"[PPO-WEATHER] blocked={wm['blocked_windows']}/{wm['original_windows']} "
+                          f"seed={wm['config']['seed']} mask={wm['mask_sha256'][:12]}", flush=True)
                 cached_sampled = sampled
                 cached_sampled_at_episode = ep
                 print(
@@ -302,28 +335,29 @@ class PPOLearningScheduler:
                 return p, sampled
 
         episode = start_episode
+        cloud_episode_started = False
         while episode < self.run_cfg.episodes:
             # rollout buffer
             states, masks, actions, rewards, dones, logps, values = [], [], [], [], [], [], []
 
-            # ===== Accumulate for current episode =====
-            ep_return = 0.0
-            ep_len = 0
-
-            # -------- Generate or reuse training scenario and reset --------
-            p, sampled = _get_problem_for_episode(episode)
-
-            env = RLSchedulingEnv(
-                max_actions=self._max_actions,
-                placement_mode=self.run_cfg.placement_mode,
-                unassigned_penalty=self.run_cfg.unassigned_penalty,
-                downlink_duration_ratio=self.run_cfg.downlink_duration_ratio,
-                objective_weights=self.run_cfg.objective_weights,
-                reward_scale=self.run_cfg.reward_scale,
-                agility_profile=getattr(sampled, "agility_profile", self.run_cfg.agility_profile),
-                non_agile_transition_s=self.run_cfg.non_agile_transition_s,
-            )
-            obs = env.reset(p)
+            # Cloud losses are settled at episode end, including episodes that
+            # span several PPO rollout buffers.
+            if not (train_weather.enabled and cloud_episode_started):
+                ep_return = 0.0
+                ep_len = 0
+                p, sampled = _get_problem_for_episode(episode)
+                env = RLSchedulingEnv(
+                    max_actions=self._max_actions,
+                    placement_mode=self.run_cfg.placement_mode,
+                    unassigned_penalty=self.run_cfg.unassigned_penalty,
+                    downlink_duration_ratio=self.run_cfg.downlink_duration_ratio,
+                    objective_weights=self.run_cfg.objective_weights,
+                    reward_scale=self.run_cfg.reward_scale,
+                    agility_profile=getattr(sampled, "agility_profile", self.run_cfg.agility_profile),
+                    non_agile_transition_s=self.run_cfg.non_agile_transition_s,
+                )
+                obs = env.reset(p)
+                cloud_episode_started = True
 
 
 
@@ -367,6 +401,10 @@ class PPOLearningScheduler:
                             print(f"[PPO][CKPT] saved ep={episode} -> {model_path.name}", flush=True)
                         except Exception as _e:
                             print(f"[PPO][CKPT][WARN] save failed: {_e}", flush=True)
+                    ep_return = 0.0
+                    ep_len = 0
+                    if episode >= self.run_cfg.episodes:
+                        break
                     # Start a new episode following the resample_every_episodes reuse rule
                     p, sampled = _get_problem_for_episode(episode)
                     env = RLSchedulingEnv(
@@ -380,9 +418,6 @@ class PPOLearningScheduler:
                         non_agile_transition_s=self.run_cfg.non_agile_transition_s,
                     )
                     obs = env.reset(p)
-
-                    if episode >= self.run_cfg.episodes:
-                        break
 
             # bootstrap & PPO update (the original logic remains unchanged)
             import torch
@@ -433,6 +468,11 @@ class PPOLearningScheduler:
     # -------------------------
     # Test (as algorithm.search)
     # -------------------------
+
+    def _load_training_problem(self, path: Path) -> SchedulingProblem:
+        """Read all windows and attach a fixed outcome mask for cached episodes."""
+        return load_scheduling_problem_from_json(
+            path, weather_config=self.run_cfg.training_weather_config)
 
     def _ensure_loaded(self, base_dir: Path) -> None:
         """Ensure the model is loaded."""
