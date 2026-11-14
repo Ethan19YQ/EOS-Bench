@@ -110,7 +110,7 @@ EOS-Bench integrates representative methods from several algorithm families:
 
 - **MIP** (exact optimisation)
 - **Heuristics**
-- **Meta-heuristics**: SA / GA / ACO
+- **Meta-heuristics**: SA / GA / ACO / ALNS
 - **Reinforcement Learning**: PPO
 
 ### 6. Multi-objective evaluation
@@ -129,6 +129,9 @@ Generated scenarios and schedules can be visualised through **CZML + Cesium**, e
 - target locations
 - observation execution
 - schedule evolution over time
+
+### 8. Optional cloud obstruction masks
+EOS-Bench supports optional cloud obstruction masks with configurable blocked-window fractions and random seeds. Masks are disabled by default. The scheduler uses all observation windows, and the mask is applied after planning to calculate realised task profit and completion rate. The same saved plan can be evaluated at several cloud levels. PPO training has a separate configuration for cloud outcomes. See [Case E: Optional Weather Masks](#case-e-optional-weather-masks) for usage.
 
 ---
 
@@ -208,6 +211,7 @@ EOS-Bench/
 │   ├── meta_sa.py               # Simulated annealing
 │   ├── meta_ga.py               # Genetic algorithm
 │   ├── meta_aco.py              # Ant colony optimisation
+│   ├── alns.py                  # Adaptive large neighbourhood search
 │   ├── candidate_pool.py        # Candidate assignment generation
 │   ├── objectives.py            # Multi-objective scoring
 │   ├── random_utils.py          # Random seed utilities
@@ -219,6 +223,7 @@ EOS-Bench/
 │
 ├── schedulers/                  # Constraint model, engine, loader, metrics, RL env
 │   ├── scenario_loader.py
+│   ├── weather_mask.py          # Optional cloud masks for post-planning evaluation
 │   ├── constraint_model.py
 │   ├── engine.py
 │   ├── evaluation_metrics.py
@@ -249,6 +254,7 @@ EOS-Bench/
 │
 ├── main_generate.py             # Scenario generation entry
 ├── main_scheduler.py            # Scheduling / benchmarking / PPO train-test entry
+├── evaluate_cloud_schedule.py   # Evaluate a saved plan at several cloud levels
 └── main_draw.py                 # Visualisation entry
 ```
 
@@ -379,6 +385,8 @@ Run a benchmark comparing MIP (exact), Simulated Annealing (meta-heuristic), and
 #### Case B: Reinforcement Learning (PPO) Training
 Enable the PPO training phase to train an RL agent for 5000 episodes on the generated scenarios.
 
+Training ignores cloud obstruction by default. To enable cloud outcome losses in the training reward independently of evaluation, use the options in [Case E](#case-e-optional-weather-masks).
+
 * **Via CLI:**
   ```bash
   python main_scheduler.py --algos ppo --rl_train --rl_episodes 5000 --workers_rl 1
@@ -413,20 +421,69 @@ You can evaluate algorithms across different combinations of objectives (profit,
       ObjectiveWeights(w_profit=0.25, w_completion=0.25, w_timeliness=0.25, w_balance=0.25),
   ]
   ```
-*(Note: For algorithms that support weights (like MIP, SA, GA, ACO, PPO), the script will automatically run an independent evaluation for each weight combination).*
+*(Note: For algorithms that support weights (like MIP, SA, GA, ACO, ALNS, PPO), the script will automatically run an independent evaluation for each weight combination).*
 
 #### Case D: Running Custom / Third-Party Algorithms
 If you or others have integrated a new algorithm into the EOS-Bench framework, you can evaluate it seamlessly alongside the built-in methods by specifying its registered name. For detailed instructions on how to integrate your own method into the factory and configuration, please refer to the [Adding New Algorithms](#-adding-new-algorithms) section below.
 
 * **Via CLI:**
   ```bash
-  # Assuming 'alns' is a newly added custom algorithm
+  # ALNS is already implemented and registered
   python main_scheduler.py --algos alns --workers_other 4
   ```
 * **Via Script (`main_scheduler.py`):**
   ```python
-  selected_algos = ["alns"]  # Run the custom algorithm
+  selected_algos = ["alns"]  # Run the integrated ALNS baseline
   ```
+
+#### Case E: Optional Weather Masks
+
+Cloud obstruction is represented by a fixed mask of optical observation windows and is disabled by default. When enabled, it marks the configured fraction of windows as blocked. The scheduler constructs a plan using all windows. After planning, observations assigned to blocked windows contribute no realised TP or TCR. The complete plan and its resource usage are retained, and TCR uses the original task count as its denominator. Existing scenario files are used without regeneration or modification.
+
+**Scheduling and evaluation.** This example uses the supplied scenario in `docs/`. It constructs ALNS and profit-first plans, then evaluates their acquisition outcomes with a 25% blocked-window fraction:
+
+```bash
+python main_scheduler.py --scenario_dir docs --algos alns profit_first --weights 1 0 0 0 --weather_mask --cloud_fraction 0.25 --weather_seed 42 --workers_other 1
+```
+
+Replace `docs` with your scenario directory for other instances. Omit `--weather_mask` to evaluate without cloud obstruction. The same instance, fraction and weather seed give the same blocked windows across solvers. Change `--seed_offset` for repeated class-1/3 search runs while keeping `--weather_seed` fixed to retain the weather condition.
+
+**Several cloud levels for one plan.** Save a plan once, then evaluate it at 0%, 25%, 50% and 75% obstruction:
+
+```bash
+python main_scheduler.py --scenario_dir docs --algos alns --weights 1 0 0 0 --workers_other 1
+python evaluate_cloud_schedule.py --scenario docs/Scenario_S1_Sats20_M500_T0.5d_dist0.json --schedule output/schedules/scheduler_Scenario_S1_Sats20_M500_T0.5d_dist0_c3_alns_p1_c0_t0_b0.json --fractions 0 0.25 0.5 0.75 --weather_seed 42 --output output/cloud_results/alns_cloud.json
+```
+
+If the plan is already saved, only the second command is needed. It records planned and realised TP/TCR for each fraction in a separate JSON file. The source plan is unchanged. Choose a new output path for another experiment, or use `--overwrite` to replace an existing cloud-results file.
+
+**PPO training.** The training mask is configured separately. All windows remain available to the policy. Cloud losses are deducted from the profit and completion components of the reward at the end of each episode. This command trains with a 25% mask on the existing training scenarios in `output/`, without running evaluation afterwards:
+
+```bash
+python main_scheduler.py --algos ppo --rl_train --rl_episodes 5000 --skip_rl_test --train_weather_mask --train_cloud_fraction 0.25 --train_weather_seed 7
+```
+
+The existing training sampler is unchanged. An outcome mask is attached when a scenario is read, and cached episodes reuse that mask. The evaluation flag `--weather_mask` does not enable training masks, and `--train_weather_mask` does not enable evaluation masks. `--scenario_dir` selects evaluation inputs, not the PPO training library. Weather-trained models are saved under distinct names; select the intended checkpoint in `test_model_paths` when evaluating it in a later invocation.
+
+| CLI option | Purpose | Default |
+| --- | --- | --- |
+| `--weather_mask` | Enable cloud outcome evaluation after scheduling, including PPO evaluation | Off |
+| `--cloud_fraction` | Fraction of observation windows marked as blocked, from 0 to 1 | `0.2` |
+| `--weather_seed` | Fix the evaluation mask independently of search randomness | `0` |
+| `--train_weather_mask` | Enable cloud losses in the PPO episode-end reward | Off |
+| `--train_cloud_fraction` | Fraction of training observation windows to block, from 0 to 1 | `0.2` |
+| `--train_weather_seed` | Fix the training mask independently of evaluation | `0` |
+
+**Via script configuration.** Set these dictionaries at the bottom of `main_scheduler.py` and run it without CLI arguments:
+
+```python
+weather_config = {"enabled": True, "blocked_fraction": 0.25, "seed": 42}
+rl_training_weather_config = {"enabled": True, "blocked_fraction": 0.25, "seed": 7}
+```
+
+Set either `enabled` value to `False` to disable that phase's mask. These dictionaries configure weather only; use the existing `selected_algos`, `rl_do_train` and `rl_do_test` settings to choose the execution phases.
+
+*Outputs and interpretation:* The single-level example saves results under `output/schedules/cloud_post_f0.25_s42/`. Its `metrics.TP` and `metrics.TCR` are realised values. The `weather_mask` record contains the mask configuration, blocked window IDs, and planned and realised TP/TCR under `outcomes`. BD, TM and runtime describe the complete plan. The fraction is the share of access windows marked as blocked, rather than geographical cloud coverage. These are fixed masks for optical observations. See [ALNS and weather-mask experiments](docs/ALNS_WEATHER_EXPERIMENTS.md) for further details.
 
 ---
 
@@ -478,7 +535,7 @@ EOS-Bench currently supports the following algorithm classes:
 | -------- | ------------------ | --------------------------------------------------------------- |
 | 1        | Exact optimisation | MIP                                                             |
 | 2        | Heuristics         | completion-first, profit-first, balance-first, timeliness-first |
-| 3        | Meta-heuristics    | SA, GA, ACO                                                     |
+| 3        | Meta-heuristics    | SA, GA, ACO, ALNS                                               |
 | 4        | Learning-based     | PPO                                                             |
 
 This makes the platform suitable for both **classical OR benchmarking** and **modern AI scheduling studies**.
@@ -487,42 +544,22 @@ This makes the platform suitable for both **classical OR benchmarking** and **mo
 
 ## ➕ Adding New Algorithms
 
+ALNS is available as an implemented class-3 baseline. See [ALNS and weather-mask experiments](docs/ALNS_WEATHER_EXPERIMENTS.md) for its configuration and repeated-run protocol.
+
 The platform is designed to be highly extensible. All algorithms in EOS-Bench share a unified interface, meaning you can plug in a new method without modifying the underlying constraint evaluation or logging pipelines. 
 
 > 📘 For a detailed step-by-step guide to integrating a new scheduling algorithm into EOS-Bench, please refer to **[ADDING_NEW_ALGORITHMS.md](algorithms/ADDING_NEW_ALGORITHMS.md)**.
 
-To add a new algorithm, follow these steps. Let's use an **Adaptive Large Neighbourhood Search (ALNS)** algorithm as an example:
+The implemented **Adaptive Large Neighbourhood Search (ALNS)** baseline illustrates these steps. Its implementation and registration are already included; follow the same pattern when adding another method.
 
 **1. Implement the scheduler**
-Create your algorithm file (e.g., `algorithms/alns.py`). Your class must inherit from `BaseSchedulerAlgorithm` and implement the `search()` method.
+The implementation is in `algorithms/alns.py`. It combines removal and repair operators, adaptive weights and simulated-annealing acceptance, while reusing the shared constraint and objective models. A new solver follows the same `search()` interface.
 
 ```python
-# algorithms/alns.py
-from schedulers.engine import BaseSchedulerAlgorithm
-from schedulers.constraint_model import ConstraintModel, Schedule
-from schedulers.scenario_loader import SchedulingProblem
+from algorithms.alns import ALNSConfig, ALNSScheduler
 
-class ALNSScheduler(BaseSchedulerAlgorithm):
-    def __init__(self, cfg=None):
-        # Initialise algorithm-specific parameters and objective weights
-        self.cfg = cfg
-        
-    def search(
-        self, 
-        problem: SchedulingProblem, 
-        constraint_model: ConstraintModel, 
-        initial_schedule: Schedule
-    ) -> Schedule:
-        # 1. Initialise the starting schedule
-        current_schedule = initial_schedule
-        
-        # 2. Implement your optimisation behaviour here
-        # E.g., use candidate_pool to get assignments, and evaluate them:
-        # if constraint_model.is_feasible_assignment(candidate, current_schedule):
-        #     current_schedule.assignments.append(candidate)
-        
-        # 3. Return the final optimised schedule
-        return current_schedule
+scheduler = ALNSScheduler(ALNSConfig(seed=42, max_iterations=200))
+# SchedulingEngine supplies problem, constraint_model and initial_schedule.
 ```
 
 **2. Register in the Algorithm Factory (`algorithms/factory.py`)**
@@ -530,7 +567,8 @@ Import your custom scheduler and add an `if` block inside the `create_algorithm`
 
 ```python
 # algorithms/factory.py
-from algorithms.alns import ALNSScheduler  # 1. Import your algorithm
+from algorithms.alns import ALNSConfig, ALNSScheduler
+from algorithms.objectives import ObjectiveWeights
 
 def create_algorithm(algo_name: str, objective_weights=None, cfg_overrides=None):
     name = (algo_name or "").lower().strip()
@@ -538,8 +576,11 @@ def create_algorithm(algo_name: str, objective_weights=None, cfg_overrides=None)
     
     # 2. Register your algorithm
     if name in ("alns", "adaptive_large_ns"):
-        # You can define an ALNSConfig dataclass to handle overrides securely
-        return ALNSScheduler(cfg=cfg_overrides) 
+        cfg = ALNSConfig(weights=objective_weights or ObjectiveWeights())
+        for key, value in (cfg_overrides or {}).items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        return ALNSScheduler(cfg=cfg)
 ```
 
 **3. Add to the configuration in `main_scheduler.py`**
@@ -559,7 +600,7 @@ all_algo_specs = [
 Once registered, your algorithm is fully integrated into the benchmark workflow. You can trigger it via the CLI, evaluate it across multiple objectives, and benefit from the same standard logging and 3D visualisation pipelines.
 
 ```bash
-python main_scheduler.py --algos alns --workers_other 4
+python main_scheduler.py --scenario_dir docs --algos alns --weights 1 0 0 0 --workers_other 1
 ```
 
 ---
@@ -611,6 +652,14 @@ EOS-Bench is designed for:
 
 ---
 
+## Licence
+
+The EOS-Bench source code is licensed under the [MIT License](https://opensource.org/license/mit). The benchmark scenario data are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Third-party materials retain their original licences.
+
+If you use EOS-Bench in your research, please cite our paper.
+
+---
+
 ## 📚 Citation
 
 If you find **EOS-Bench** or the accompanying dataset helpful for your research, please consider citing our paper:
@@ -644,5 +693,3 @@ The following papers have cited **EOS-Bench** in their research:
 * **Codebase**: this repository
 * **Dataset**: [EOS-Bench on Hugging Face](https://huggingface.co/datasets/Ethan19YQ/EOS-Bench/tree/main)
 * **3D visualisation**:[View Demo Schedule](https://ethan19yq.github.io/EOS-Bench/cesium_viewer.html?scenario_name=Scenario_S1_Sats20_M500_T0.5d_dist0&runlog=runlog_batch_20260427_191631.txt)
-
-```
