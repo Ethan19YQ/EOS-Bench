@@ -682,10 +682,13 @@ If you find **EOS-Bench** or the accompanying dataset helpful for your research,
 
 The following papers have cited **EOS-Bench** in their research:
 
-* Tubolayefa Warekuromor. **“Reproducible Baselines and Execution Verification for Earth Observation Satellite Constellation Scheduling s.”** *International Journal of Modern Science and Research Technology (IJMSRT)*, Vol. 4, No. 8, August 2026, pp. 877–888.
-  
-* Qian Yin, Huilin Wang, Xinwei Wang, and Guohua Wu. **“Routine Scheduling of a Multi-Beam Data Relay Satellite with Mixed Request Modes and Coupled Beams.”** *Advances in Space Research*, 2026. Elsevier.
+* Qian Yin, Huilin Wang, Xinwei Wang, and Guohua Wu. **“[Routine Scheduling of a Multi-Beam Data Relay Satellite with Mixed Request Modes and Coupled Beams](https://doi.org/10.1016/j.asr.2026.07.098  ).”** *Advances in Space Research*, Vol. 78, No. 7, 2026, pp. 7369–7387. Elsevier.
 
+* Qing Yang, Guohua Wu, Weiyi Yang, Yingguo Chen, Jian Wu, Lining Xing, and Zhi Yang. **“[Emergent Collaborative Scheduling in Satellite Swarms: A Distributed Multi-Agent Reinforcement Learning Approach with Adaptive Experience Evolution](https://www.sciencedirect.com/science/article/pii/S0957417426034391).”** *Expert Systems with Applications*, Vol. 334, Part D, Article 134535, 2027. Elsevier.
+
+* Zhongxiang Chang, Shihui Xing, Haoran Song, Xiaolu Liu, Xiaoming Wang, and Hongjie Fu. **“[Deep Reinforcement Learning-Guided Genetic Meta-Control for Dynamic Satellite Task Planning Problem](https://www.sciencedirect.com/science/article/pii/S2210650226003123).”** *Swarm and Evolutionary Computation*, Article 102592, 2026. Elsevier.
+
+* Tubolayefa Warekuromor. **“[Reproducible Baselines and Execution Verification for Earth Observation Satellite Constellation Scheduling](https://doi.org/10.67317/IJMSRT26AUG175  ).”** *International Journal of Modern Science and Research Technology (IJMSRT)*, Vol. 4, No. 8, August 2026, pp. 877–888.
 ---
 
 ## 🌍 Related Resources
